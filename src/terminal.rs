@@ -1,6 +1,6 @@
 use core::fmt;
-use std::io::Write;
-use libc::{c_int, ioctl, winsize, STDOUT_FILENO, TIOCGWINSZ};
+use libc::{c_int, ioctl, tcgetattr, tcsetattr, termios, winsize, ECHO, ICANON, STDOUT_FILENO, TCSANOW, TIOCGWINSZ};
+use std::{io::{self, Read, Write}, mem, sync::Mutex};
 
 pub enum Ansi {
     HideCursor,           // "\x1B[?25l"
@@ -20,20 +20,82 @@ impl fmt::Display for Ansi {
     }
 }
 
-pub fn get_size() -> (u16, u16) {
-	let mut size: winsize = unsafe { std::mem::zeroed() };
-	unsafe {
-		ioctl(STDOUT_FILENO, TIOCGWINSZ, &mut size);
-	}
+static mut ORIGINAL_TERM: Mutex<termios> = Mutex::new(unsafe {
+    mem::zeroed()
+});
 
-	(size.ws_col, size.ws_row)
+// enable raw mode so we dont have to wait for enter press
+pub fn enable_raw_mode() {
+    let mut term = unsafe { mem::zeroed() };
+    unsafe {
+        tcgetattr(0, &mut term);
+
+        // save original attributes to restore later
+        let original_term = term;
+        *ORIGINAL_TERM.lock().unwrap() = original_term;
+
+        // turn off canonical mode and echo
+        term.c_lflag &= !(ICANON | ECHO); 
+        tcsetattr(0, TCSANOW, &term);
+    }
+}
+
+pub fn disable_raw_mode() {
+    unsafe {
+        let original_term = *ORIGINAL_TERM.lock().unwrap();
+        tcsetattr(0, TCSANOW, &original_term);
+    }
+}
+
+pub fn get_size() -> (u16, u16) {
+    let mut size: winsize = unsafe { std::mem::zeroed() };
+    unsafe {
+        ioctl(STDOUT_FILENO, TIOCGWINSZ, &mut size);
+    }
+
+    (size.ws_col, size.ws_row)
 }
 
 pub extern "C" fn handle_signal(_signal: c_int) {
-	// Clean up and restore cursor
-	print!("{}", Ansi::ClearScreen);
-	print!("{}", Ansi::ShowCursor);
-	print!("{}", Ansi::MoveCursor(1, 1));
-	std::io::stdout().flush().unwrap();
-	std::process::exit(0)
+    restore_and_exit();
+}
+
+fn restore_and_exit() {
+    // clean up and restore cursor
+    print!("{}", Ansi::ClearScreen);
+    print!("{}", Ansi::ShowCursor);
+    print!("{}", Ansi::MoveCursor(1, 1));
+    std::io::stdout().flush().unwrap();
+
+    disable_raw_mode();
+
+    std::process::exit(0)
+}
+
+fn interpret_key() {
+    let mut buffer = [0; 2];
+    io::stdin().read_exact(&mut buffer).expect("Failed to read key from STDIN");
+
+    match buffer {
+        [b'[', b'A'] => println!("UP!"),
+        [b'[', b'B'] => println!("DOWN!"),
+        [b'[', b'C'] => println!("RIGHT!"),
+        [b'[', b'D'] => println!("LEFT!"),
+        _ => (),
+    }
+}
+
+pub fn read_input() -> anyhow::Result<()> {
+    let mut buffer = [0; 1];
+    io::stdin().read_exact(&mut buffer)?;
+
+    match buffer[0] {
+        b'q' => restore_and_exit(),
+        b'm' => println!("{}", Ansi::ShowCursor),
+        b'n' => println!("{}", Ansi::HideCursor),
+        b'\x1B' => interpret_key(),
+        _ => ()
+    }
+
+    Ok(())
 }
