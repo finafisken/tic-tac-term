@@ -11,6 +11,7 @@ fn main() -> anyhow::Result<()> {
     loop {
         game::render(&game_state)?;
         terminal::read_input(&mut game_state)?;
+        game::check_state(&mut game_state);
         thread::sleep(time::Duration::from_millis(33));
     }
 

@@ -115,9 +115,17 @@ pub fn read_input(state: &mut game::State) -> anyhow::Result<()> {
         b'q' => restore_and_exit(),
         b'm' => println!("{}", Ansi::ShowCursor),
         b'n' => println!("{}", Ansi::HideCursor),
+        b'x' => game::attempt_placing(state, 'X'),
+        b'o' => game::attempt_placing(state, 'O'),
         b'\x1B' => interpret_key(state),
         _ => (),
     }
 
     Ok(())
+}
+
+pub fn print_debug<T: fmt::Debug>(data: T) {
+    print!("{}", Ansi::MoveCursor(1, get_size().1-2));
+    println!("{:?}", data);
+    io::stdout().flush().unwrap();
 }

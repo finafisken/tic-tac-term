@@ -7,6 +7,7 @@ pub struct State {
     pub board: [char; 9],
     pub board_pos: (u16, u16),
     pub cursor_pos: (u16, u16),
+    pub active: bool, 
 }
 
 pub fn new() -> State {
@@ -14,6 +15,7 @@ pub fn new() -> State {
         board: [' '; 9],
         board_pos: (1, 1),
         cursor_pos: (2, 2),
+        active: true,
     }
 }
 
@@ -40,10 +42,25 @@ fn draw_board(state: &State) {
 pub fn render(state: &State) -> anyhow::Result<()> {
     print!("{}", Ansi::ClearScreen);
     draw_board(state);
+    super::terminal::print_debug(state);
     print!(
         "{}",
         Ansi::MoveCursor(state.cursor_pos.0, state.cursor_pos.1)
     );
     io::stdout().flush()?;
     Ok(())
+}
+
+pub fn attempt_placing(state: &mut State, symbol: char) {
+    let valid_pos = [(3,2), (7, 2), (11, 2), (3,4), (7, 4), (11, 4), (3,6), (7, 6), (11, 6)];
+
+    if let Some(placement_index) = valid_pos.iter().position(|pos| pos == &state.cursor_pos) {
+        state.board[placement_index] = symbol;
+    };
+}
+
+pub fn check_state(state: &mut State) {
+    if !state.board.contains(&' ') {
+        state.active = false;
+    }
 }

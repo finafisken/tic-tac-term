@@ -1,0 +1,3 @@
+- implement logic for 3 in a row
+- add turn system
+- ui show whos turn and game state
