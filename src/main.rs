@@ -1,37 +1,37 @@
-use std::{char, io::{self, Write}, thread, time};
-use libc::{signal, SIGINT, SIGTERM};
+use std::{io::{self, Write}, thread, time};
 use terminal::Ansi;
 
 mod terminal;
+mod game;
 
-
-fn draw_board(state: [char; 9]) {
-    print!("{}", Ansi::MoveCursor(1,1));
+fn draw_board(state: &game::State) {
+    print!("{}", Ansi::MoveCursor(state.board_pos.0, state.board_pos.1));
     println!("┌───┬───┬───┐");
-    println!("│ {} │ {} │ {} │", state[0], state[1], state[2]);
+    println!("│ {} │ {} │ {} │", state.board[0], state.board[1], state.board[2]);
     println!("├───┼───┼───┤");
-    println!("│ {} │ {} │ {} │", state[3], state[4], state[5]);
+    println!("│ {} │ {} │ {} │", state.board[3], state.board[4], state.board[5]);
     println!("├───┼───┼───┤");
-    println!("│ {} │ {} │ {} │", state[6], state[7], state[8]);
+    println!("│ {} │ {} │ {} │", state.board[6], state.board[7], state.board[8]);
     println!("└───┴───┴───┘");
+}
 
+fn render(state: &game::State) -> anyhow::Result<()> {
+    print!("{}", Ansi::ClearScreen);
+    draw_board(state);
+    print!("{}", Ansi::MoveCursor(state.cursor_pos.0, state.cursor_pos.1));
+    io::stdout().flush()?;
+    Ok(())
 }
 
 fn main() -> anyhow::Result<()> {
-    terminal::enable_raw_mode();
-    print!("{}", Ansi::HideCursor);
+    terminal::init();
 
-    unsafe {
-        signal(SIGINT, terminal::handle_signal as usize);
-        signal(SIGTERM, terminal::handle_signal as usize);
-    }
+    let mut game_state = game::new();
 
     loop {
-        print!("{}", Ansi::ClearScreen);
-        draw_board(['1', '2', '3', '4', '5','6', '7', '8', ' ']);
-        io::stdout().flush()?;
+        render(&game_state)?;
         terminal::read_input()?;
-        thread::sleep(time::Duration::from_millis(300));
+        thread::sleep(time::Duration::from_millis(33));
     }
 
     Ok(())

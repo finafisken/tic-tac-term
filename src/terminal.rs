@@ -1,5 +1,5 @@
 use core::fmt;
-use libc::{c_int, ioctl, tcgetattr, tcsetattr, termios, winsize, ECHO, ICANON, STDOUT_FILENO, TCSANOW, TIOCGWINSZ};
+use libc::{c_int, ioctl, signal, tcgetattr, tcsetattr, termios, winsize, ECHO, ICANON, SIGINT, SIGTERM, STDOUT_FILENO, TCSANOW, TIOCGWINSZ};
 use std::{io::{self, Read, Write}, mem, sync::Mutex};
 
 pub enum Ansi {
@@ -24,8 +24,17 @@ static mut ORIGINAL_TERM: Mutex<termios> = Mutex::new(unsafe {
     mem::zeroed()
 });
 
+pub fn init() {
+    enable_raw_mode();
+    print!("{}", Ansi::HideCursor);
+    unsafe {
+        signal(SIGINT, handle_signal as usize);
+        signal(SIGTERM, handle_signal as usize);
+    }
+}
+
 // enable raw mode so we dont have to wait for enter press
-pub fn enable_raw_mode() {
+fn enable_raw_mode() {
     let mut term = unsafe { mem::zeroed() };
     unsafe {
         tcgetattr(0, &mut term);
