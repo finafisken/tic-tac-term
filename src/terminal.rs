@@ -1,6 +1,16 @@
 use core::fmt;
-use libc::{c_int, ioctl, signal, tcgetattr, tcsetattr, termios, winsize, ECHO, ICANON, SIGINT, SIGTERM, STDOUT_FILENO, TCSANOW, TIOCGWINSZ};
-use std::{io::{self, Read, Write}, mem, sync::Mutex};
+use libc::{
+    c_int, ioctl, signal, tcgetattr, tcsetattr, termios, winsize, ECHO, ICANON, SIGINT, SIGTERM,
+    STDOUT_FILENO, TCSANOW, TIOCGWINSZ,
+};
+use std::{
+    cmp,
+    io::{self, Read, Write},
+    mem,
+    sync::Mutex,
+};
+
+use super::game;
 
 pub enum Ansi {
     HideCursor,           // "\x1B[?25l"
@@ -20,9 +30,7 @@ impl fmt::Display for Ansi {
     }
 }
 
-static mut ORIGINAL_TERM: Mutex<termios> = Mutex::new(unsafe {
-    mem::zeroed()
-});
+static mut ORIGINAL_TERM: Mutex<termios> = Mutex::new(unsafe { mem::zeroed() });
 
 pub fn init() {
     enable_raw_mode();
@@ -44,7 +52,7 @@ fn enable_raw_mode() {
         *ORIGINAL_TERM.lock().unwrap() = original_term;
 
         // turn off canonical mode and echo
-        term.c_lflag &= !(ICANON | ECHO); 
+        term.c_lflag &= !(ICANON | ECHO);
         tcsetattr(0, TCSANOW, &term);
     }
 }
@@ -81,20 +89,25 @@ fn restore_and_exit() {
     std::process::exit(0)
 }
 
-fn interpret_key() {
+fn interpret_key(state: &mut game::State) {
     let mut buffer = [0; 2];
-    io::stdin().read_exact(&mut buffer).expect("Failed to read key from STDIN");
+    io::stdin()
+        .read_exact(&mut buffer)
+        .expect("Failed to read key from STDIN");
+
+    let (current_x, current_y) = state.cursor_pos;
+    let (max_x, max_y) = get_size();
 
     match buffer {
-        [b'[', b'A'] => println!("UP!"),
-        [b'[', b'B'] => println!("DOWN!"),
-        [b'[', b'C'] => println!("RIGHT!"),
-        [b'[', b'D'] => println!("LEFT!"),
+        [b'[', b'A'] => state.cursor_pos = (current_x, cmp::max(current_y - 1, 1)),
+        [b'[', b'B'] => state.cursor_pos = (current_x, cmp::min(current_y + 1, max_y)),
+        [b'[', b'C'] => state.cursor_pos = (cmp::min(current_x + 1, max_x), current_y),
+        [b'[', b'D'] => state.cursor_pos = (cmp::max(current_x - 1, 1), current_y),
         _ => (),
     }
 }
 
-pub fn read_input() -> anyhow::Result<()> {
+pub fn read_input(state: &mut game::State) -> anyhow::Result<()> {
     let mut buffer = [0; 1];
     io::stdin().read_exact(&mut buffer)?;
 
@@ -102,8 +115,8 @@ pub fn read_input() -> anyhow::Result<()> {
         b'q' => restore_and_exit(),
         b'm' => println!("{}", Ansi::ShowCursor),
         b'n' => println!("{}", Ansi::HideCursor),
-        b'\x1B' => interpret_key(),
-        _ => ()
+        b'\x1B' => interpret_key(state),
+        _ => (),
     }
 
     Ok(())
