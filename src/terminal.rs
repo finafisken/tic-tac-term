@@ -89,7 +89,7 @@ fn restore_and_exit() {
     std::process::exit(0)
 }
 
-fn interpret_key(state: &mut game::State) {
+fn move_cursor(state: &mut game::State) {
     let mut buffer = [0; 2];
     io::stdin()
         .read_exact(&mut buffer)
@@ -98,12 +98,24 @@ fn interpret_key(state: &mut game::State) {
     let (current_x, current_y) = state.cursor_pos;
     let (max_x, max_y) = get_size();
 
-    match buffer {
-        [b'[', b'A'] => state.cursor_pos = (current_x, cmp::max(current_y - 1, 1)),
-        [b'[', b'B'] => state.cursor_pos = (current_x, cmp::min(current_y + 1, max_y)),
-        [b'[', b'C'] => state.cursor_pos = (cmp::min(current_x + 1, max_x), current_y),
-        [b'[', b'D'] => state.cursor_pos = (cmp::max(current_x - 1, 1), current_y),
-        _ => (),
+    if state.free_cursor {
+        match buffer {
+            [b'[', b'A'] => state.cursor_pos = (current_x, cmp::max(current_y - 1, 1)),
+            [b'[', b'B'] => state.cursor_pos = (current_x, cmp::min(current_y + 1, max_y)),
+            [b'[', b'C'] => state.cursor_pos = (cmp::min(current_x + 1, max_x), current_y),
+            [b'[', b'D'] => state.cursor_pos = (cmp::max(current_x - 1, 1), current_y),
+            _ => (),
+        }
+    } else if state.symbol_slots.contains(&state.cursor_pos) {
+        match buffer {
+            [b'[', b'A'] => state.cursor_pos = (current_x, cmp::max(current_y - 2, 2)),
+            [b'[', b'B'] => state.cursor_pos = (current_x, cmp::min(current_y + 2, 6)),
+            [b'[', b'C'] => state.cursor_pos = (cmp::min(current_x + 4, 11), current_y),
+            [b'[', b'D'] => {
+                state.cursor_pos = (cmp::max(current_x.saturating_sub(4), 3), current_y)
+            }
+            _ => (),
+        }
     }
 }
 
@@ -113,11 +125,13 @@ pub fn read_input(state: &mut game::State) -> anyhow::Result<()> {
 
     match buffer[0] {
         b'q' => restore_and_exit(),
-        b'm' => println!("{}", Ansi::ShowCursor),
-        b'n' => println!("{}", Ansi::HideCursor),
+        b's' => println!("{}", Ansi::ShowCursor),
+        b'h' => println!("{}", Ansi::HideCursor),
+        b'f' => state.free_cursor = !state.free_cursor,
         b'x' => game::attempt_placing(state, 'X'),
         b'o' => game::attempt_placing(state, 'O'),
-        b'\x1B' => interpret_key(state),
+        b' ' => game::attempt_placing(state, char::from(&state.current_player)),
+        b'\x1B' => move_cursor(state),
         _ => (),
     }
 

@@ -10,16 +10,30 @@ pub struct State {
     pub active: bool,
     pub current_player: Player,
     pub winner: Option<Player>,
+    pub free_cursor: bool,
+    pub symbol_slots: [(u16, u16); 9],
 }
 
 pub fn new() -> State {
     State {
         board: [' '; 9],
         board_pos: (1, 1),
-        cursor_pos: (2, 2),
+        cursor_pos: (3, 2),
         active: true,
         current_player: Player::O,
         winner: None,
+        free_cursor: false,
+        symbol_slots: [
+            (3, 2),
+            (7, 2),
+            (11, 2),
+            (3, 4),
+            (7, 4),
+            (11, 4),
+            (3, 6),
+            (7, 6),
+            (11, 6),
+        ],
     }
 }
 
@@ -44,6 +58,15 @@ impl From<char> for Player {
             'O' => Player::O,
             'X' => Player::X,
             _ => panic!("Unknown player"),
+        }
+    }
+}
+
+impl From<&Player> for char {
+    fn from(value: &Player) -> Self {
+        match value {
+            Player::O => 'O',
+            Player::X => 'X',
         }
     }
 }

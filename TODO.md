@@ -1,3 +1,3 @@
 - write tests for checking winner
 - ui show whos turn and game state
-- fix so move in grid jumps to next valid pos
+- rewrite magic numbers to be relative to board_pos

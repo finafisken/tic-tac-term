@@ -14,6 +14,4 @@ fn main() -> anyhow::Result<()> {
         game::check_state(&mut game_state);
         thread::sleep(time::Duration::from_millis(33));
     }
-
-    Ok(())
 }
