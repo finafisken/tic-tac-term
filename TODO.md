@@ -1,3 +1,3 @@
-- implement logic for 3 in a row
-- add turn system
+- write tests for checking winner
 - ui show whos turn and game state
+- fix so move in grid jumps to next valid pos

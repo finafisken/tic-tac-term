@@ -34,7 +34,7 @@ static mut ORIGINAL_TERM: Mutex<termios> = Mutex::new(unsafe { mem::zeroed() });
 
 pub fn init() {
     enable_raw_mode();
-    print!("{}", Ansi::HideCursor);
+    // print!("{}", Ansi::HideCursor);
     unsafe {
         signal(SIGINT, handle_signal as usize);
         signal(SIGTERM, handle_signal as usize);
@@ -125,7 +125,7 @@ pub fn read_input(state: &mut game::State) -> anyhow::Result<()> {
 }
 
 pub fn print_debug<T: fmt::Debug>(data: T) {
-    print!("{}", Ansi::MoveCursor(1, get_size().1-2));
+    print!("{}", Ansi::MoveCursor(1, get_size().1 - 2));
     println!("{:?}", data);
     io::stdout().flush().unwrap();
 }
