@@ -1,3 +1,4 @@
-- write tests for checking winner
 - ui show whos turn and game state
+- write tests for checking winner
 - rewrite magic numbers to be relative to board_pos
+- rewrite to handle n x n size of board

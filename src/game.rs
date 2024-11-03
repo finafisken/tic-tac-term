@@ -128,8 +128,11 @@ pub fn attempt_placing(state: &mut State, symbol: char) {
 }
 
 pub fn check_state(state: &mut State) {
-    state.winner = check_rows(state);
-    state.winner = check_cols(state);
+    let rows_result = check_rows(state);
+    let cols_result = check_cols(state);
+    let diagonal_result = check_diagonal(state);
+
+    state.winner = rows_result.or(cols_result).or(diagonal_result);
 
     if !state.board.contains(&' ') || state.winner.is_some() {
         state.active = false;
@@ -153,5 +156,19 @@ fn check_cols(state: &mut State) -> Option<Player> {
             return Some(state.board[col].into());
         }
     }
+    None
+}
+
+fn check_diagonal(state: &mut State) -> Option<Player> {
+    let board = state.board;
+
+    if board[0] == board[4] && board[4] == board[8] && board[4] != ' ' {
+        return Some(board[4].into())
+    }
+
+    if board[2] == board[4] && board[4] == board[6] && board[4] != ' ' {
+        return Some(board[4].into())
+    }
+
     None
 }
