@@ -127,6 +127,7 @@ pub fn read_input(state: &mut game::State) -> anyhow::Result<()> {
         b'q' => restore_and_exit(),
         b's' => println!("{}", Ansi::ShowCursor),
         b'h' => println!("{}", Ansi::HideCursor),
+        b'r' => state.restart(),
         b'f' => state.free_cursor = !state.free_cursor,
         b'x' => game::attempt_placing(state, 'X'),
         b'o' => game::attempt_placing(state, 'O'),

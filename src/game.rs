@@ -14,6 +14,15 @@ pub struct State {
     pub symbol_slots: [(u16, u16); 9],
 }
 
+impl State {
+    pub fn restart(&mut self) {
+        self.board = [' '; 9];
+        self.active = true;
+        self.current_player = Player::O;
+        self.winner = None;
+    }
+}
+
 pub fn new() -> State {
     State {
         board: [' '; 9],
@@ -107,20 +116,8 @@ pub fn render(state: &State) -> anyhow::Result<()> {
 }
 
 pub fn attempt_placing(state: &mut State, symbol: char) {
-    let valid_pos = [
-        (3, 2),
-        (7, 2),
-        (11, 2),
-        (3, 4),
-        (7, 4),
-        (11, 4),
-        (3, 6),
-        (7, 6),
-        (11, 6),
-    ];
-
-    if let Some(placement_index) = valid_pos.iter().position(|pos| pos == &state.cursor_pos) {
-        if state.board[placement_index] == ' ' && state.current_player == symbol.into() {
+    if let Some(placement_index) = state.symbol_slots.iter().position(|pos| pos == &state.cursor_pos) {
+        if state.board[placement_index] == ' ' && state.current_player == symbol.into() && state.active {
             state.board[placement_index] = symbol;
             state.current_player = state.current_player.end_turn();
         }
