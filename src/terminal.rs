@@ -89,37 +89,37 @@ fn restore_and_exit() {
     std::process::exit(0)
 }
 
-fn move_cursor(state: &mut game::State) {
+fn move_cursor(game: &mut game::Game) {
     let mut buffer = [0; 2];
     io::stdin()
         .read_exact(&mut buffer)
         .expect("Failed to read key from STDIN");
 
-    let (current_x, current_y) = state.cursor_pos;
+    let (current_x, current_y) = game.cursor_pos;
     let (max_x, max_y) = get_size();
 
-    if state.free_cursor {
+    if game.free_cursor {
         match buffer {
-            [b'[', b'A'] => state.cursor_pos = (current_x, cmp::max(current_y - 1, 1)),
-            [b'[', b'B'] => state.cursor_pos = (current_x, cmp::min(current_y + 1, max_y)),
-            [b'[', b'C'] => state.cursor_pos = (cmp::min(current_x + 1, max_x), current_y),
-            [b'[', b'D'] => state.cursor_pos = (cmp::max(current_x - 1, 1), current_y),
+            [b'[', b'A'] => game.cursor_pos = (current_x, cmp::max(current_y - 1, 1)),
+            [b'[', b'B'] => game.cursor_pos = (current_x, cmp::min(current_y + 1, max_y)),
+            [b'[', b'C'] => game.cursor_pos = (cmp::min(current_x + 1, max_x), current_y),
+            [b'[', b'D'] => game.cursor_pos = (cmp::max(current_x - 1, 1), current_y),
             _ => (),
         }
-    } else if state.symbol_slots.contains(&state.cursor_pos) {
+    } else if game.symbol_slots.contains(&game.cursor_pos) {
         match buffer {
-            [b'[', b'A'] => state.cursor_pos = (current_x, cmp::max(current_y - 2, 2)),
-            [b'[', b'B'] => state.cursor_pos = (current_x, cmp::min(current_y + 2, 6)),
-            [b'[', b'C'] => state.cursor_pos = (cmp::min(current_x + 4, 11), current_y),
+            [b'[', b'A'] => game.cursor_pos = (current_x, cmp::max(current_y - 2, 2)),
+            [b'[', b'B'] => game.cursor_pos = (current_x, cmp::min(current_y + 2, 6)),
+            [b'[', b'C'] => game.cursor_pos = (cmp::min(current_x + 4, 11), current_y),
             [b'[', b'D'] => {
-                state.cursor_pos = (cmp::max(current_x.saturating_sub(4), 3), current_y)
+                game.cursor_pos = (cmp::max(current_x.saturating_sub(4), 3), current_y)
             }
             _ => (),
         }
     }
 }
 
-pub fn read_input(state: &mut game::State) -> anyhow::Result<()> {
+pub fn read_input(game: &mut game::Game) -> anyhow::Result<()> {
     let mut buffer = [0; 1];
     io::stdin().read_exact(&mut buffer)?;
 
@@ -127,12 +127,12 @@ pub fn read_input(state: &mut game::State) -> anyhow::Result<()> {
         b'q' => restore_and_exit(),
         b's' => println!("{}", Ansi::ShowCursor),
         b'h' => println!("{}", Ansi::HideCursor),
-        b'r' => state.restart(),
-        b'f' => state.free_cursor = !state.free_cursor,
-        b'x' => game::attempt_placing(state, 'X'),
-        b'o' => game::attempt_placing(state, 'O'),
-        b' ' => game::attempt_placing(state, char::from(&state.current_player)),
-        b'\x1B' => move_cursor(state),
+        b'r' => game.restart(),
+        b'f' => game.free_cursor = !game.free_cursor,
+        b'x' => game.attempt_placing('X'),
+        b'o' => game.attempt_placing('O'),
+        b' ' => game.attempt_placing(char::from(game.get_current_player())),
+        b'\x1B' => move_cursor(game),
         _ => (),
     }
 
