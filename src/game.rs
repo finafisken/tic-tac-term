@@ -5,6 +5,8 @@ use crate::terminal;
 #[derive(Debug)]
 pub struct Game {
     state: State,
+    pub player: Player,
+    pub mode: Mode,
     pub board_pos: (u16, u16),
     pub cursor_pos: (u16, u16),
     pub free_cursor: bool,
@@ -12,8 +14,10 @@ pub struct Game {
 }
 
 impl Game {
-    pub fn new() -> Self {
+    pub fn new(mode: Mode) -> Self {
         Game {
+            player: Player::O,
+            mode,
             state: State {
                 board: [' '; 9],
                 active: true,
@@ -155,6 +159,12 @@ impl State {
     
         None
     }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Mode {
+    Local,
+    Network,
 }
 
 #[derive(Debug, PartialEq)]

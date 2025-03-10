@@ -6,7 +6,7 @@ mod terminal;
 fn main() -> anyhow::Result<()> {
     terminal::init();
 
-    let mut game = game::Game::new();
+    let mut game = game::Game::new(game::Mode::Local);
 
     loop {
         game.render()?;
