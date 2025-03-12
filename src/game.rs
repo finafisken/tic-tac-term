@@ -14,9 +14,10 @@ pub struct Game {
 }
 
 impl Game {
-    pub fn new(mode: Mode) -> Self {
+    pub fn new(mode: Mode, is_host: bool) -> Self {
+        let player = if mode == Mode::Network && !is_host { Player::X } else { Player::O };
         Game {
-            player: Player::O,
+            player,
             mode,
             state: State {
                 board: [' '; 9],
