@@ -140,7 +140,7 @@ pub fn read_input(game: &mut game::Game) -> anyhow::Result<()> {
 }
 
 pub fn print_debug<T: fmt::Debug>(data: T) {
-    print!("{}", Ansi::MoveCursor(1, get_size().1 - 2));
+    print!("{}", Ansi::MoveCursor(1, get_size().1 - 4));
     println!("{:?}", data);
     io::stdout().flush().unwrap();
 }

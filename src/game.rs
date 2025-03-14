@@ -1,10 +1,10 @@
-use std::io::{self, Write};
+use std::{fmt::{self, format}, io::{self, Write}};
 
 use crate::terminal;
 
 #[derive(Debug)]
 pub struct Game {
-    state: State,
+    pub state: State,
     pub player: Player,
     pub mode: Mode,
     pub board_pos: (u16, u16),
@@ -90,6 +90,12 @@ impl Game {
         };
     }
 
+    pub fn validate(&mut self, potential_state: State) -> anyhow::Result<()> {
+        // TODO validation logic
+        self.state = potential_state;
+        Ok(())
+    }
+
     pub fn get_current_player(&self) -> &Player {
         &self.state.current_player
     }
@@ -159,6 +165,37 @@ impl State {
         }
     
         None
+    }
+}
+
+impl From<String> for State {
+    fn from(value: String) -> Self {
+        let x: Vec<&str> = value.split("###").collect();
+        let board: [char; 9] = x.first().expect("No board data").split(',').map(|s| s.chars().next().unwrap_or(' ')).collect::<Vec<char>>().try_into().expect("failed to convert to char");
+        let current_player: Player = x.get(1).expect("no current player").chars().next().expect("cant parse char").into();
+        let active = x.get(2).map(|s| s.parse::<bool>().unwrap()).unwrap();
+        let winner = x.get(3)
+            .and_then(|s| s.chars().next())
+            .map(Player::from);
+
+        State {
+            board,
+            active,
+            current_player,
+            winner,
+        }
+    }
+}
+
+impl fmt::Display for State {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let board = self.board.iter().map(|c| c.to_string()).collect::<Vec<String>>().join(",");
+        let curr_player: char = (&self.current_player).into();
+        let winner = self.winner
+            .as_ref()
+            .map(char::from)
+            .unwrap_or(' ');
+        write!(f, "{}###{}###{}###{}", board, curr_player, self.active, winner)
     }
 }
 
