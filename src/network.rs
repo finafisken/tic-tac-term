@@ -1,19 +1,28 @@
-use std::{io::{BufRead, BufReader, BufWriter, Read, Write}, net::{TcpListener, TcpStream}};
+use std::{
+    io::{BufRead, BufReader, BufWriter, Write},
+    net::{TcpListener, TcpStream},
+};
 
+#[derive(Debug)]
 pub enum MessageType {
     Connected,
-    Disconnected,
     Accepted,
     Rejected,
-    Payload
+    Payload,
 }
 
-pub struct Payload {
-
+#[derive(Debug, PartialEq)]
+pub enum NetState {
+    Active,
+    Waiting,
 }
 
-pub fn connect(address: &str, is_host: bool) -> anyhow::Result<(BufReader<TcpStream>, BufWriter<TcpStream>)> {
-    
+pub struct Payload {}
+
+pub fn connect(
+    address: &str,
+    is_host: bool,
+) -> anyhow::Result<(BufReader<TcpStream>, BufWriter<TcpStream>)> {
     let tcp_stream = match is_host {
         true => TcpListener::bind(address)?.accept()?.0,
         false => TcpStream::connect(address)?,

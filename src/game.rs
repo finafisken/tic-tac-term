@@ -1,11 +1,15 @@
-use std::{fmt::{self, format}, io::{self, Write}};
+use std::{
+    fmt,
+    io::{self, Write},
+};
 
-use crate::terminal;
+use crate::{network::NetState, terminal};
 
 #[derive(Debug)]
 pub struct Game {
     pub state: State,
     pub player: Player,
+    pub net_state: NetState,
     pub mode: Mode,
     pub board_pos: (u16, u16),
     pub cursor_pos: (u16, u16),
@@ -15,10 +19,17 @@ pub struct Game {
 
 impl Game {
     pub fn new(mode: Mode, is_host: bool) -> Self {
-        let player = if mode == Mode::Network && !is_host { Player::X } else { Player::O };
+        let mut player = Player::O;
+        let mut net_state = NetState::Active;
+        if mode == Mode::Network && !is_host {
+            player = Player::X;
+            net_state = NetState::Waiting;
+        }
+
         Game {
             player,
             mode,
+            net_state,
             state: State {
                 board: [' '; 9],
                 active: true,
@@ -82,8 +93,15 @@ impl Game {
     }
 
     pub fn attempt_placing(&mut self, symbol: char) {
-        if let Some(placement_index) = self.symbol_slots.iter().position(|pos| pos == &self.cursor_pos) {
-            if self.state.board[placement_index] == ' ' && self.state.current_player == symbol.into() && self.state.active {
+        if let Some(placement_index) = self
+            .symbol_slots
+            .iter()
+            .position(|pos| pos == &self.cursor_pos)
+        {
+            if self.state.board[placement_index] == ' '
+                && self.state.current_player == symbol.into()
+                && self.state.active
+            {
                 self.state.board[placement_index] = symbol;
                 self.state.current_player = self.state.current_player.end_turn();
             }
@@ -125,22 +143,21 @@ impl State {
         let rows_result = self.check_rows();
         let cols_result = self.check_cols();
         let diagonal_result = self.check_diagonal();
-    
+
         self.winner = rows_result.or(cols_result).or(diagonal_result);
-    
+
         if !self.board.contains(&' ') || self.winner.is_some() {
             self.active = false;
         }
     }
 
     fn check_rows(&mut self) -> Option<Player> {
-        self
-            .board
+        self.board
             .chunks(3)
             .find(|row| row[0] == row[1] && row[1] == row[2] && row[0] != ' ')
             .map(|c_arr| c_arr[0].into())
     }
-    
+
     fn check_cols(&mut self) -> Option<Player> {
         for col in 0..3 {
             if self.board[col] == self.board[col + 3]
@@ -152,18 +169,18 @@ impl State {
         }
         None
     }
-    
+
     fn check_diagonal(&mut self) -> Option<Player> {
         let board = self.board;
-    
+
         if board[0] == board[4] && board[4] == board[8] && board[4] != ' ' {
-            return Some(board[4].into())
+            return Some(board[4].into());
         }
-    
+
         if board[2] == board[4] && board[4] == board[6] && board[4] != ' ' {
-            return Some(board[4].into())
+            return Some(board[4].into());
         }
-    
+
         None
     }
 }
@@ -171,12 +188,23 @@ impl State {
 impl From<String> for State {
     fn from(value: String) -> Self {
         let x: Vec<&str> = value.split("###").collect();
-        let board: [char; 9] = x.first().expect("No board data").split(',').map(|s| s.chars().next().unwrap_or(' ')).collect::<Vec<char>>().try_into().expect("failed to convert to char");
-        let current_player: Player = x.get(1).expect("no current player").chars().next().expect("cant parse char").into();
+        let board: [char; 9] = x
+            .first()
+            .expect("No board data")
+            .split(',')
+            .map(|s| s.chars().next().unwrap_or(' '))
+            .collect::<Vec<char>>()
+            .try_into()
+            .expect("failed to convert to char");
+        let current_player: Player = x
+            .get(1)
+            .expect("no current player")
+            .chars()
+            .next()
+            .expect("cant parse char")
+            .into();
         let active = x.get(2).map(|s| s.parse::<bool>().unwrap()).unwrap();
-        let winner = x.get(3)
-            .and_then(|s| s.chars().next())
-            .map(Player::from);
+        let winner = x.get(3).and_then(|s| s.chars().next()).map(Player::from);
 
         State {
             board,
@@ -189,13 +217,19 @@ impl From<String> for State {
 
 impl fmt::Display for State {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let board = self.board.iter().map(|c| c.to_string()).collect::<Vec<String>>().join(",");
+        let board = self
+            .board
+            .iter()
+            .map(|c| c.to_string())
+            .collect::<Vec<String>>()
+            .join(",");
         let curr_player: char = (&self.current_player).into();
-        let winner = self.winner
-            .as_ref()
-            .map(char::from)
-            .unwrap_or(' ');
-        write!(f, "{}###{}###{}###{}", board, curr_player, self.active, winner)
+        let winner = self.winner.as_ref().map(char::from).unwrap_or(' ');
+        write!(
+            f,
+            "{}###{}###{}###{}",
+            board, curr_player, self.active, winner
+        )
     }
 }
 

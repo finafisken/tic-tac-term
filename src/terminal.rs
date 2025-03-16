@@ -111,9 +111,7 @@ fn move_cursor(game: &mut game::Game) {
             [b'[', b'A'] => game.cursor_pos = (current_x, cmp::max(current_y - 2, 2)),
             [b'[', b'B'] => game.cursor_pos = (current_x, cmp::min(current_y + 2, 6)),
             [b'[', b'C'] => game.cursor_pos = (cmp::min(current_x + 4, 11), current_y),
-            [b'[', b'D'] => {
-                game.cursor_pos = (cmp::max(current_x.saturating_sub(4), 3), current_y)
-            }
+            [b'[', b'D'] => game.cursor_pos = (cmp::max(current_x.saturating_sub(4), 3), current_y),
             _ => (),
         }
     }
