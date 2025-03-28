@@ -1,5 +1,5 @@
 use std::{env, sync::mpsc, thread, time};
-use game::{Game, Mode};
+use game::{Game, Mode, State};
 use network::NetState;
 
 mod game;
@@ -38,20 +38,24 @@ fn main() -> anyhow::Result<()> {
 
     loop {
         // if is_host {game.render()?} else {println!("{:?}", game)};
+        // println!("{:?}", game);
         game.render()?;
 
         terminal::read_input(&mut game)?;
 
         if let Ok(recieved) = net_rx.recv_timeout(time::Duration::from_millis(33)) {
-            if recieved.contains("###") && game.net_state == NetState::Waiting  {
-                let validation_result = game.validate(recieved.into());
-                let reply = match validation_result {
-                    Ok(_) => format!("{:?}", network::MessageType::Accepted),
-                    Err(_) => format!("{:?}", network::MessageType::Rejected),
-                };
-
-                game_tx.send(reply)?;
-                game.net_state = NetState::Active;
+            if recieved.contains("###") {
+                let recieved_state: State = recieved.into();
+                if recieved_state.round > game.state.round {
+                    let validation_result = game.validate(recieved_state);
+                    let reply = match validation_result {
+                        Ok(_) => format!("{:?}", network::MessageType::Accepted),
+                        Err(_) => format!("{:?}", network::MessageType::Rejected),
+                    };
+    
+                    game_tx.send(reply)?;
+                    game.net_state = NetState::Active;
+                }
             } else if recieved.contains("Accepted") {
                 // set netstate
                 // CHECK ACTUAL RESPONSE

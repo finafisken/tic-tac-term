@@ -32,6 +32,7 @@ impl Game {
             net_state,
             state: State {
                 board: [' '; 9],
+                round: 0,
                 active: true,
                 current_player: Player::O,
                 winner: None,
@@ -93,6 +94,11 @@ impl Game {
     }
 
     pub fn attempt_placing(&mut self, symbol: char) {
+        if self.mode == Mode::Network && self.player != symbol.into() {
+            // network mode and not players turn
+            return;
+        }
+
         if let Some(placement_index) = self
             .symbol_slots
             .iter()
@@ -103,6 +109,7 @@ impl Game {
                 && self.state.active
             {
                 self.state.board[placement_index] = symbol;
+                self.state.round += 1;
                 self.state.current_player = self.state.current_player.end_turn();
             }
         };
@@ -126,6 +133,7 @@ impl Game {
 #[derive(Debug)]
 pub struct State {
     pub board: [char; 9],
+    pub round: u8,
     pub active: bool,
     pub current_player: Player,
     pub winner: Option<Player>,
@@ -134,6 +142,7 @@ pub struct State {
 impl State {
     pub fn restart(&mut self) {
         self.board = [' '; 9];
+        self.round = 0;
         self.active = true;
         self.current_player = Player::O;
         self.winner = None;
@@ -203,11 +212,13 @@ impl From<String> for State {
             .next()
             .expect("cant parse char")
             .into();
-        let active = x.get(2).map(|s| s.parse::<bool>().unwrap()).unwrap();
-        let winner = x.get(3).and_then(|s| s.chars().next()).map(Player::from);
+        let round = x.get(2).map(|r| r.parse::<u8>().unwrap()).unwrap();
+        let active = x.get(3).map(|s| s.parse::<bool>().unwrap()).unwrap();
+        let winner = x.get(4).and_then(|s| s.chars().next()).map(Player::from);
 
         State {
             board,
+            round,
             active,
             current_player,
             winner,
@@ -227,8 +238,8 @@ impl fmt::Display for State {
         let winner = self.winner.as_ref().map(char::from).unwrap_or(' ');
         write!(
             f,
-            "{}###{}###{}###{}",
-            board, curr_player, self.active, winner
+            "{}###{}###{}###{}###{}",
+            board, curr_player, self.round, self.active, winner
         )
     }
 }
