@@ -7,7 +7,7 @@ use std::{
     cmp,
     io::{self, Read, Write},
     mem,
-    sync::Mutex,
+    sync::{mpsc, Mutex}, time::Duration,
 };
 
 use super::game;
@@ -89,17 +89,29 @@ fn restore_and_exit() {
     std::process::exit(0)
 }
 
-fn move_cursor(game: &mut game::Game) {
-    let mut buffer = [0; 2];
-    io::stdin()
-        .read_exact(&mut buffer)
-        .expect("Failed to read key from STDIN");
+fn move_cursor(game: &mut game::Game, term_rx: &mpsc::Receiver<u8>) {
+    // let mut buffer = [0; 2];
+    // io::stdin()
+    //     .read_exact(&mut buffer)
+    //     .expect("Failed to read key from STDIN");
+
+    let Ok(first_byte) = term_rx.recv_timeout(Duration::from_millis(10)) else {
+        return;
+    };
+
+    if first_byte != b'[' {
+        return;
+    }
+
+    let Ok(second_byte) = term_rx.recv_timeout(Duration::from_millis(10)) else {
+        return;
+    };
 
     let (current_x, current_y) = game.cursor_pos;
     let (max_x, max_y) = get_size();
 
     if game.free_cursor {
-        match buffer {
+        match [first_byte, second_byte] {
             [b'[', b'A'] => game.cursor_pos = (current_x, cmp::max(current_y - 1, 1)),
             [b'[', b'B'] => game.cursor_pos = (current_x, cmp::min(current_y + 1, max_y)),
             [b'[', b'C'] => game.cursor_pos = (cmp::min(current_x + 1, max_x), current_y),
@@ -107,7 +119,7 @@ fn move_cursor(game: &mut game::Game) {
             _ => (),
         }
     } else if game.symbol_slots.contains(&game.cursor_pos) {
-        match buffer {
+        match [first_byte, second_byte] {
             [b'[', b'A'] => game.cursor_pos = (current_x, cmp::max(current_y - 2, 2)),
             [b'[', b'B'] => game.cursor_pos = (current_x, cmp::min(current_y + 2, 6)),
             [b'[', b'C'] => game.cursor_pos = (cmp::min(current_x + 4, 11), current_y),
@@ -117,11 +129,11 @@ fn move_cursor(game: &mut game::Game) {
     }
 }
 
-pub fn read_input(game: &mut game::Game) -> anyhow::Result<()> {
-    let mut buffer = [0; 1];
-    io::stdin().read_exact(&mut buffer)?;
+pub fn process_input(game: &mut game::Game, term_rx: &mpsc::Receiver<u8>) -> anyhow::Result<()> {
+    // let mut buffer = [0; 1];
+    // io::stdin().read_exact(&mut buffer)?;
 
-    match buffer[0] {
+    match term_rx.recv_timeout(Duration::from_millis(33))? {
         b'q' => restore_and_exit(),
         b's' => println!("{}", Ansi::ShowCursor),
         b'h' => println!("{}", Ansi::HideCursor),
@@ -130,7 +142,7 @@ pub fn read_input(game: &mut game::Game) -> anyhow::Result<()> {
         b'x' => game.attempt_placing('X'),
         b'o' => game.attempt_placing('O'),
         b' ' => game.attempt_placing(char::from(game.get_current_player())),
-        b'\x1B' => move_cursor(game),
+        b'\x1B' => move_cursor(game, term_rx),
         _ => (),
     }
 

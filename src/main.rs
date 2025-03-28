@@ -1,4 +1,4 @@
-use std::{env, sync::mpsc, thread, time};
+use std::{env, sync::mpsc, thread, time, io::{self, Read},};
 use game::{Game, Mode, State};
 use network::NetState;
 
@@ -14,25 +14,37 @@ fn main() -> anyhow::Result<()> {
 
     let (game_tx, game_rx) = mpsc::channel::<String>();
     let (net_tx, net_rx) = mpsc::channel::<String>();
+    let (term_tx, term_rx) = mpsc::channel::<u8>();
 
     if game_mode == Mode::Network {
         let (mut net_read, mut net_write) = network::connect(&addr, is_host)?;
         thread::spawn(move || {
             loop {
                 let incoming = network::read_stream(&mut net_read).unwrap();
-                // terminal::print_debug(&incoming);
-                // println!("{}", incoming);
-                net_tx.send(incoming).unwrap();
-                // thread::sleep(time::Duration::from_millis(33));
+                net_tx.send(incoming);
+                thread::sleep(time::Duration::from_millis(33));
             }
         });
 
-        thread::spawn(move || loop {
-            let data = game_rx.recv().unwrap().into_bytes().clone();
-            network::write_stream(&mut net_write, data).unwrap();
-            // thread::sleep(time::Duration::from_millis(33));
+        thread::spawn(move || {
+            loop {
+                if let Ok(data) = game_rx.recv() {
+                    let game_state = data.into_bytes().clone();
+                    network::write_stream(&mut net_write, game_state).unwrap();
+                    thread::sleep(time::Duration::from_millis(33));
+                }
+            }
         });
     }
+
+    thread::spawn(move || {
+        loop {
+            let mut buffer = [0; 1];
+            io::stdin().read_exact(&mut buffer);
+
+            term_tx.send(buffer[0]);
+        }
+    });
 
     let mut game = Game::new(game_mode, is_host);
 
@@ -41,7 +53,7 @@ fn main() -> anyhow::Result<()> {
         // println!("{:?}", game);
         game.render()?;
 
-        terminal::read_input(&mut game)?;
+        terminal::process_input(&mut game, &term_rx);
 
         if let Ok(recieved) = net_rx.recv_timeout(time::Duration::from_millis(33)) {
             if recieved.contains("###") {

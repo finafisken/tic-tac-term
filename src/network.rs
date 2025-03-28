@@ -45,7 +45,7 @@ pub fn read_stream(stream: &mut BufReader<TcpStream>) -> anyhow::Result<String> 
     let mut msg: String = String::default();
     stream.read_line(&mut msg)?;
 
-    println!("######## {}", msg);
+    // println!("######## {}", msg);
 
     Ok(msg.trim().to_string())
 }
