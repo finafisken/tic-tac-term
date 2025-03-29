@@ -36,6 +36,10 @@ NEW_VERSION="$MAJOR.$MINOR.$PATCH"
 sed -i.bak "s/^version = \"$CURRENT_VERSION\"/version = \"$NEW_VERSION\"/" Cargo.toml
 rm Cargo.toml.bak
 
+# Run cargo check to update Cargo.lock
+echo "Updating Cargo.lock..."
+cargo check --quiet
+
 # Commit the change
 git add Cargo.toml Cargo.lock
 git commit -m "v$NEW_VERSION"
