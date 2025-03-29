@@ -126,7 +126,10 @@ impl Game {
     }
 
     pub fn restart(&mut self) {
-        self.state.restart();
+        match self.mode {
+            Mode::Local => self.state.restart(),
+            Mode::Network => (),
+        }
     }
 }
 

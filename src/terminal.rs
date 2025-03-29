@@ -7,7 +7,7 @@ use std::{
     cmp,
     io::{self, Write},
     mem,
-    sync::{mpsc, Mutex}, time::Duration,
+    sync::{mpsc, Mutex, OnceLock}, time::Duration,
 };
 
 use super::game;
@@ -30,11 +30,10 @@ impl fmt::Display for Ansi {
     }
 }
 
-static mut ORIGINAL_TERM: Mutex<termios> = Mutex::new(unsafe { mem::zeroed() });
+static ORIGINAL_TERM: OnceLock<Mutex<termios>> = OnceLock::new();
 
 pub fn init() {
     enable_raw_mode();
-    // print!("{}", Ansi::HideCursor);
     unsafe {
         signal(SIGINT, handle_signal as usize);
         signal(SIGTERM, handle_signal as usize);
@@ -49,7 +48,7 @@ fn enable_raw_mode() {
 
         // save original attributes to restore later
         let original_term = term;
-        *ORIGINAL_TERM.lock().unwrap() = original_term;
+        ORIGINAL_TERM.get_or_init(|| Mutex::new(original_term));
 
         // turn off canonical mode and echo
         term.c_lflag &= !(ICANON | ECHO);
@@ -58,9 +57,12 @@ fn enable_raw_mode() {
 }
 
 pub fn disable_raw_mode() {
-    unsafe {
-        let original_term = *ORIGINAL_TERM.lock().unwrap();
-        tcsetattr(0, TCSANOW, &original_term);
+    if let Some(lock) = ORIGINAL_TERM.get() {
+        unsafe {
+            if let Ok(term) = lock.lock() {
+                tcsetattr(0, TCSANOW, &*term);
+            }
+        }
     }
 }
 
