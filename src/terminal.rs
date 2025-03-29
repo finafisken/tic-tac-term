@@ -5,7 +5,7 @@ use libc::{
 };
 use std::{
     cmp,
-    io::{self, Read, Write},
+    io::{self, Write},
     mem,
     sync::{mpsc, Mutex}, time::Duration,
 };
@@ -90,11 +90,6 @@ fn restore_and_exit() {
 }
 
 fn move_cursor(game: &mut game::Game, term_rx: &mpsc::Receiver<u8>) {
-    // let mut buffer = [0; 2];
-    // io::stdin()
-    //     .read_exact(&mut buffer)
-    //     .expect("Failed to read key from STDIN");
-
     let Ok(first_byte) = term_rx.recv_timeout(Duration::from_millis(10)) else {
         return;
     };
@@ -130,9 +125,6 @@ fn move_cursor(game: &mut game::Game, term_rx: &mpsc::Receiver<u8>) {
 }
 
 pub fn process_input(game: &mut game::Game, term_rx: &mpsc::Receiver<u8>) -> anyhow::Result<()> {
-    // let mut buffer = [0; 1];
-    // io::stdin().read_exact(&mut buffer)?;
-
     match term_rx.recv_timeout(Duration::from_millis(33))? {
         b'q' => restore_and_exit(),
         b's' => println!("{}", Ansi::ShowCursor),

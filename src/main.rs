@@ -6,8 +6,6 @@ mod game;
 mod network;
 mod terminal;
 
-// X, , , , , ,O, , ###X
-
 fn main() -> anyhow::Result<()> {
     let (game_mode, addr, is_host) = parse_args();
     terminal::init();
@@ -21,7 +19,7 @@ fn main() -> anyhow::Result<()> {
         thread::spawn(move || {
             loop {
                 let incoming = network::read_stream(&mut net_read).unwrap();
-                net_tx.send(incoming);
+                net_tx.send(incoming).unwrap();
                 thread::sleep(time::Duration::from_millis(33));
             }
         });
@@ -40,20 +38,17 @@ fn main() -> anyhow::Result<()> {
     thread::spawn(move || {
         loop {
             let mut buffer = [0; 1];
-            io::stdin().read_exact(&mut buffer);
-
-            term_tx.send(buffer[0]);
+            io::stdin().read_exact(&mut buffer).unwrap();
+            term_tx.send(buffer[0]).unwrap();
         }
     });
 
     let mut game = Game::new(game_mode, is_host);
 
     loop {
-        // if is_host {game.render()?} else {println!("{:?}", game)};
-        // println!("{:?}", game);
         game.render()?;
 
-        terminal::process_input(&mut game, &term_rx);
+        let _ = terminal::process_input(&mut game, &term_rx);
 
         if let Ok(recieved) = net_rx.recv_timeout(time::Duration::from_millis(33)) {
             if recieved.contains("###") {
@@ -74,7 +69,6 @@ fn main() -> anyhow::Result<()> {
                 game.net_state = NetState::Waiting;
                
             }
-            // game.net_state = network::NetState::Active;
         }
         game.check_state();
 
