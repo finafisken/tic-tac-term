@@ -1,0 +1,45 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - "v*"  # Trigger on tags like v1.0.0
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build-and-release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Extract version from Cargo.toml
+        id: get_version
+        run: |
+          VERSION=$(grep '^version =' Cargo.toml | head -n 1 | cut -d '"' -f 2)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Version: $VERSION"
+
+      - name: Build for macOS
+        run: |
+          cargo build --release --target aarch64-apple-darwin
+          cp target/aarch64-apple-darwin/release/tic-tac-term tic-tac-term-macos
+          strip tic-tac-term-macos
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: Release v${{ env.VERSION }}
+          generate_release_notes: true
+          files: |
+            tic-tac-term-macos
