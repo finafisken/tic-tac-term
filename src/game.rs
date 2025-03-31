@@ -3,7 +3,12 @@ use std::{
     io::{self, Write},
 };
 
-use crate::{network::NetState, terminal};
+use anyhow::anyhow;
+
+use crate::{
+    network::{self, NetState},
+    terminal,
+};
 
 #[derive(Debug)]
 pub struct Game {
@@ -195,6 +200,55 @@ impl State {
 
         None
     }
+}
+
+impl TryFrom<&[u8]> for State {
+    fn try_from(bytes: &[u8]) -> anyhow::Result<Self> {
+        if bytes.len() != 11 {
+            return Err(anyhow!("Full state can only be deserialized from 11 bytes"))
+        }
+        // board is 9 bytes (no need for full char, can only have 3 values)
+        let board_bytes = &bytes[0..9];
+        let board: [char; 9] = board_bytes
+            .iter()
+            .map(|b| match b {
+                b'X' => 'X',
+                b'O' => 'O',
+                _ => ' ',
+            })
+            .collect::<Vec<char>>()
+            .try_into()
+            .expect("Failed to convert board bytes");
+
+        // round count is single u8
+        let round = bytes[9];
+
+        // current_player = 1bit
+        // winner = 2bit (some/none + player)
+        // active = 1bit bool
+        let flags_byte = bytes[10];
+
+        // extract flags
+        let current_player = if (flags_byte & 1) == 0 { Player::X } else { Player::O };
+        let active = (flags_byte & (1 << 1)) != 0;
+        let has_winner = (flags_byte & (1 << 2)) != 0;
+        let winner = if has_winner {
+            Some(if (flags_byte & (1 << 3)) != 0 { Player::O } else { Player::X })
+        } else {
+            None
+        };
+
+        // full state from 11byte
+        Ok(State {
+            board,
+            round,
+            active,
+            current_player,
+            winner,
+        })
+    }
+
+    type Error = anyhow::Error;
 }
 
 impl From<String> for State {

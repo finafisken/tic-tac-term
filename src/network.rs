@@ -3,11 +3,18 @@ use std::{
     net::{TcpListener, TcpStream},
 };
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum MessageType {
     Accepted,
     Rejected,
     Payload,
+}
+
+#[derive(Debug)]
+pub struct Message {
+    pub message_type: MessageType,
+    pub payload_size: u16,
+    pub payload: Vec<u8>
 }
 
 #[derive(Debug, PartialEq)]
@@ -15,8 +22,6 @@ pub enum NetState {
     Active,
     Waiting,
 }
-
-pub struct Payload {}
 
 pub fn connect(
     address: &str,
