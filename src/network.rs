@@ -3,6 +3,8 @@ use std::{
     net::{TcpListener, TcpStream},
 };
 
+use anyhow::anyhow;
+
 #[derive(Debug, PartialEq)]
 pub enum MessageType {
     Accepted,
@@ -10,11 +12,62 @@ pub enum MessageType {
     Payload,
 }
 
+impl From<MessageType> for u8 {
+    fn from(mt: MessageType) -> Self {
+        match mt {
+            MessageType::Accepted => 0,
+            MessageType::Rejected => 1,
+            MessageType::Payload => 2,
+        }
+    }
+}
+
+impl TryFrom<u8> for MessageType {
+    fn try_from(byte: u8) -> anyhow::Result<Self> {
+        match byte {
+            0 => Ok(MessageType::Accepted),
+            1 => Ok(MessageType::Rejected),
+            2 => Ok(MessageType::Payload),
+            _ => Err(anyhow!("Invalid byte value"))
+        }
+    }
+
+    type Error = anyhow::Error;
+}
+
 #[derive(Debug)]
 pub struct Message {
     pub message_type: MessageType,
     pub payload_size: u16,
     pub payload: Vec<u8>
+}
+
+impl From<Message> for Vec<u8> {
+    fn from(msg: Message) -> Self {
+        // first byte is msg type
+        // u16 (two bytes) for payload length
+        // remaining bytes payload
+        let mut bytes: Vec<u8> = vec![msg.message_type.into()];
+        bytes.extend(msg.payload_size.to_be_bytes());
+        bytes.extend(msg.payload);
+
+        bytes
+    }
+}
+
+impl TryFrom<&[u8]> for Message {
+    fn try_from(bytes: &[u8]) -> anyhow::Result<Self> {
+        // TODO some check that length of bytes adds up before conversion
+        let message_type: MessageType = bytes[0].try_into()?;
+
+        Ok(Message {
+            message_type,
+            payload_size: u16::from_be_bytes([bytes[1], bytes[2]]),
+            payload: bytes[3..].to_vec()
+        })
+    }
+
+    type Error = anyhow::Error;
 }
 
 #[derive(Debug, PartialEq)]

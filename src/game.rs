@@ -6,7 +6,7 @@ use std::{
 use anyhow::anyhow;
 
 use crate::{
-    network::{self, NetState},
+    network::NetState,
     terminal,
 };
 
@@ -202,12 +202,20 @@ impl State {
     }
 }
 
+/// Binary format (11 bytes):
+/// - Bytes 0-8: Board state ('X', 'O', or ' ' for each cell)
+/// - Byte 9: Round count
+/// - Byte 10: Flag byte
+///   - Bit 0: Current player (0 = X, 1 = O)
+///   - Bit 1: Game active (0 = inactive, 1 = active)
+///   - Bit 2: Has winner (0 = no, 1 = yes)
+///   - Bit 3: Winner type (0 = X, 1 = O) if bit 2 is set
 impl TryFrom<&[u8]> for State {
     fn try_from(bytes: &[u8]) -> anyhow::Result<Self> {
         if bytes.len() != 11 {
             return Err(anyhow!("Full state can only be deserialized from 11 bytes"))
         }
-        // board is 9 bytes (no need for full char, can only have 3 values)
+        // board is 9 bytes (no need for full char (4bytes), can only have 3 values)
         let board_bytes = &bytes[0..9];
         let board: [char; 9] = board_bytes
             .iter()
@@ -228,7 +236,8 @@ impl TryFrom<&[u8]> for State {
         // active = 1bit bool
         let flags_byte = bytes[10];
 
-        // extract flags
+        // extract flags 
+        // TODO add more comments about bit ops
         let current_player = if (flags_byte & 1) == 0 { Player::X } else { Player::O };
         let active = (flags_byte & (1 << 1)) != 0;
         let has_winner = (flags_byte & (1 << 2)) != 0;
@@ -249,6 +258,53 @@ impl TryFrom<&[u8]> for State {
     }
 
     type Error = anyhow::Error;
+}
+
+impl From<&State> for Vec<u8> {
+    fn from(state: &State) -> Self {
+        let mut bytes: Vec<u8> = Vec::with_capacity(11);
+
+        // board 9 bytes
+        for c in state.board {
+            let byte = match c {
+                'X' => b'X',
+                'O' => b'O',
+                _ => b' ',
+            };
+            bytes.push(byte)
+        };
+
+        // round count 1 byte (u8)
+        bytes.push(state.round);
+
+        // pack flags into a single byte
+        let mut flags_byte: u8 = 0;
+        
+        // current player (bit 0)
+        if state.current_player == Player::O {
+            flags_byte |= 1;
+        }
+        
+        // active state (bit 1)
+        if state.active {
+            flags_byte |= 1 << 1;
+        }
+        
+        // has winner (bit 2)
+        if state.winner.is_some() {
+            flags_byte |= 1 << 2;
+            
+            // winner player (bit 3)
+            if let Some(Player::O) = state.winner {
+                flags_byte |= 1 << 3;
+            }
+        }
+        
+        // flags byte (1 byte)
+        bytes.push(flags_byte);
+
+        bytes
+    }
 }
 
 impl From<String> for State {
