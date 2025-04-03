@@ -60,6 +60,10 @@ impl TryFrom<&[u8]> for Message {
         // TODO some check that length of bytes adds up before conversion
         let message_type: MessageType = bytes[0].try_into()?;
 
+        if message_type != MessageType::Payload {
+            return Ok(Message { message_type, payload_size: 0, payload: Vec::new() })
+        }
+
         Ok(Message {
             message_type,
             payload_size: u16::from_be_bytes([bytes[1], bytes[2]]),
