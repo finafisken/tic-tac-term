@@ -1,6 +1,4 @@
 - validate incoming state
-- de/serialize to binary instead of text
-- set up build pipeline for binary
 - ui show whos turn and game state
 - write tests for checking winner
 - rewrite magic numbers to be relative to board_pos

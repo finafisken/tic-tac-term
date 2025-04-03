@@ -54,7 +54,7 @@ fn main() -> anyhow::Result<()> {
                 MessageType::Accepted => game.net_state = NetState::Waiting,
                 MessageType::Rejected => game.net_state = NetState::Active,
                 MessageType::Payload => {
-                    let recieved_state: State = recieved.payload.clone().as_slice().try_into()?;
+                    let recieved_state: State = recieved.payload.as_slice().try_into()?;
                     if recieved_state.round > game.state.round {
                         let validation_result = game.validate(recieved_state);
                         let reply = match validation_result {

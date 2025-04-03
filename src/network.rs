@@ -101,9 +101,9 @@ pub fn connect(
 pub fn read_stream(stream: &mut BufReader<TcpStream>) -> anyhow::Result<Message> {
     let mut mt_buf = [0; 1];
     stream.read_exact(&mut mt_buf)?;
-    let mt: MessageType = mt_buf[0].try_into()?;
+    let message_type: MessageType = mt_buf[0].try_into()?;
 
-    if mt != MessageType::Payload {
+    if message_type != MessageType::Payload {
         let message: Message = mt_buf.as_slice().try_into()?;
         return Ok(message)
     }
@@ -113,11 +113,11 @@ pub fn read_stream(stream: &mut BufReader<TcpStream>) -> anyhow::Result<Message>
 
     let payload_size = u16::from_be_bytes(payload_size_buf);
 
-    let mut payload_buf = vec![0; payload_size as usize];
+    let mut payload = vec![0; payload_size as usize];
 
-    stream.read_exact(&mut payload_buf)?;
+    stream.read_exact(&mut payload)?;
 
-    Ok(Message { message_type: mt, payload_size, payload: payload_buf })
+    Ok(Message { message_type, payload_size, payload })
 }
 
 pub fn write_stream(stream: &mut BufWriter<TcpStream>, data: Vec<u8>) -> anyhow::Result<()> {
