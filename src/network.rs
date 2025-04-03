@@ -1,5 +1,5 @@
 use std::{
-    io::{BufRead, BufReader, BufWriter, Write},
+    io::{BufReader, BufWriter, Read, Write},
     net::{TcpListener, TcpStream},
 };
 
@@ -91,7 +91,6 @@ pub fn connect(
 
     // https://doc.rust-lang.org/book/ch21-01-single-threaded.html
     // https://github.com/thepacketgeek/rust-tcpstream-demo/blob/master/protocol/README.md
-    // println!("{:?}", tcp_stream);
 
     let reader = BufReader::new(tcp_stream.try_clone()?);
     let writer = BufWriter::new(tcp_stream);
@@ -99,20 +98,30 @@ pub fn connect(
     Ok((reader, writer))
 }
 
-pub fn read_stream(stream: &mut BufReader<TcpStream>) -> anyhow::Result<String> {
-    // let mut buf = [0; 1];
-    // stream.read_exact(&mut buf)?;
-    // let msg = String::from_utf8(buf.to_vec())?;
+pub fn read_stream(stream: &mut BufReader<TcpStream>) -> anyhow::Result<Message> {
+    let mut mt_buf = [0; 1];
+    stream.read_exact(&mut mt_buf)?;
+    let mt: MessageType = mt_buf[0].try_into()?;
 
-    let mut msg: String = String::default();
-    stream.read_line(&mut msg)?;
+    if mt != MessageType::Payload {
+        let message: Message = mt_buf.as_slice().try_into()?;
+        return Ok(message)
+    }
 
-    Ok(msg.trim().to_string())
+    let mut payload_size_buf = [0; 2];
+    stream.read_exact(&mut payload_size_buf)?;
+
+    let payload_size = u16::from_be_bytes(payload_size_buf);
+
+    let mut payload_buf = vec![0; payload_size as usize];
+
+    stream.read_exact(&mut payload_buf)?;
+
+    Ok(Message { message_type: mt, payload_size, payload: payload_buf })
 }
 
 pub fn write_stream(stream: &mut BufWriter<TcpStream>, data: Vec<u8>) -> anyhow::Result<()> {
     stream.write_all(&data)?;
-    stream.write_all(b"\n")?; // remove when using bytes, only needed for read_line
     stream.flush()?;
 
     Ok(())

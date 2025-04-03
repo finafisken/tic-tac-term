@@ -1,6 +1,6 @@
 use std::{env, sync::mpsc, thread, time, io::{self, Read},};
 use game::{Game, Mode, State};
-use network::NetState;
+use network::{Message, MessageType, NetState};
 
 mod game;
 mod network;
@@ -10,8 +10,8 @@ fn main() -> anyhow::Result<()> {
     let (game_mode, addr, is_host) = parse_args();
     terminal::init();
 
-    let (game_tx, game_rx) = mpsc::channel::<String>();
-    let (net_tx, net_rx) = mpsc::channel::<String>();
+    let (game_tx, game_rx) = mpsc::channel::<Message>();
+    let (net_tx, net_rx) = mpsc::channel::<Message>();
     let (term_tx, term_rx) = mpsc::channel::<u8>();
 
     if game_mode == Mode::Network {
@@ -26,9 +26,8 @@ fn main() -> anyhow::Result<()> {
 
         thread::spawn(move || {
             loop {
-                if let Ok(data) = game_rx.recv() {
-                    let game_state = data.into_bytes().clone();
-                    network::write_stream(&mut net_write, game_state).unwrap();
+                if let Ok(msg) = game_rx.recv() {
+                    network::write_stream(&mut net_write, msg.into()).unwrap();
                     thread::sleep(time::Duration::from_millis(33));
                 }
             }
@@ -51,29 +50,36 @@ fn main() -> anyhow::Result<()> {
         let _ = terminal::process_input(&mut game, &term_rx);
 
         if let Ok(recieved) = net_rx.recv_timeout(time::Duration::from_millis(33)) {
-            if recieved.contains("###") {
-                let recieved_state: State = recieved.into();
-                if recieved_state.round > game.state.round {
-                    let validation_result = game.validate(recieved_state);
-                    let reply = match validation_result {
-                        Ok(_) => format!("{:?}", network::MessageType::Accepted),
-                        Err(_) => format!("{:?}", network::MessageType::Rejected),
-                    };
-    
-                    game_tx.send(reply)?;
-                    game.net_state = NetState::Active;
-                }
-            } else if recieved.contains("Accepted") {
-                // set netstate
-                // CHECK ACTUAL RESPONSE
-                game.net_state = NetState::Waiting;
-               
+            match recieved.message_type {
+                MessageType::Accepted => game.net_state = NetState::Waiting,
+                MessageType::Rejected => game.net_state = NetState::Active,
+                MessageType::Payload => {
+                    let recieved_state: State = recieved.payload.clone().as_slice().try_into()?;
+                    if recieved_state.round > game.state.round {
+                        let validation_result = game.validate(recieved_state);
+                        let reply = match validation_result {
+                            Ok(_) => MessageType::Accepted,
+                            Err(_) => MessageType::Rejected,
+                        };
+        
+                        game_tx.send(Message { message_type: reply, payload_size: 0, payload: Vec::new() })?;
+                        game.net_state = NetState::Active;
+                    }
+                },
             }
         }
+
         game.check_state();
 
         if game.mode == Mode::Network && game.net_state == NetState::Active {
-            game_tx.send(game.state.to_string())?;
+            let payload: Vec<u8> = (&game.state).into();
+            let message = Message {
+                message_type: MessageType::Payload,
+                payload_size: payload.len() as u16,
+                payload
+            };
+
+            game_tx.send(message)?;
         }
 
         thread::sleep(time::Duration::from_millis(33));

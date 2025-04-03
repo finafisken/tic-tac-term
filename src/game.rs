@@ -238,13 +238,11 @@ impl TryFrom<&[u8]> for State {
 
         // extract flags 
         // TODO add more comments about bit ops
-        // replace != 0 with 1??
         let current_player = if (flags_byte & 1) == 0 { Player::X } else { Player::O };
         let active = (flags_byte & (1 << 1)) != 0;
         let has_winner = (flags_byte & (1 << 2)) != 0;
         let winner = if has_winner {
-            // check = 0 and swap player??
-            Some(if (flags_byte & (1 << 3)) != 0 { Player::O } else { Player::X })
+            Some(if (flags_byte & (1 << 3)) == 0 { Player::X } else { Player::O })
         } else {
             None
         };
