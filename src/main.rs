@@ -59,7 +59,10 @@ fn main() -> anyhow::Result<()> {
                         let validation_result = game.validate(recieved_state);
                         let reply = match validation_result {
                             Ok(_) => MessageType::Accepted,
-                            Err(_) => MessageType::Rejected,
+                            Err(reason) => {
+                                println!("{:?}", reason);
+                                MessageType::Rejected
+                            },
                         };
         
                         game_tx.send(Message { message_type: reply, payload_size: 0, payload: Vec::new() })?;

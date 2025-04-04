@@ -115,13 +115,39 @@ impl Game {
             {
                 self.state.board[placement_index] = symbol;
                 self.state.round += 1;
-                self.state.current_player = self.state.current_player.end_turn();
+                self.state.current_player = self.state.current_player.toggle();
             }
         };
     }
 
     pub fn validate(&mut self, potential_state: State) -> anyhow::Result<()> {
-        // TODO validation logic
+        let mut diff_indexes = Vec::new();
+        for (i, (old, new)) in self.state.board.iter().zip(potential_state.board.iter()).enumerate() {
+            if old != new {
+                diff_indexes.push(i);
+            }
+        }
+
+        if diff_indexes.len() != 1 {
+            return Err(anyhow!("Exactly one move must be made"));
+        }
+
+        if potential_state.round != self.state.round + 1 {
+            return Err(anyhow!("Round number must increment by 1"));
+        }
+
+        // the single diff should be a symbol of opposing player
+        let diff_by_expected_player = Player::from(potential_state.board[diff_indexes[0]]) == self.player.toggle();
+        if !diff_by_expected_player {
+            return Err(anyhow!("Wrong player made the move"));
+        }
+
+        // when you sent the state it was your turn, when it comes back it should also be your turn
+        if potential_state.current_player == self.state.current_player {
+            return Err(anyhow!("Current player should change after a move"));
+        }
+
+        // state seems to be valid, overwrite current
         self.state = potential_state;
         Ok(())
     }
@@ -370,7 +396,7 @@ pub enum Player {
 }
 
 impl Player {
-    fn end_turn(&self) -> Player {
+    fn toggle(&self) -> Player {
         match self {
             Player::O => Player::X,
             Player::X => Player::O,
