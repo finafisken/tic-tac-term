@@ -353,7 +353,13 @@ impl From<String> for State {
             .into();
         let round = x.get(2).map(|r| r.parse::<u8>().unwrap()).unwrap();
         let active = x.get(3).map(|s| s.parse::<bool>().unwrap()).unwrap();
-        let winner = x.get(4).and_then(|s| s.chars().next()).map(Player::from);
+        let winner = x.get(4).and_then(|s| s.chars().next()).and_then(|c| {
+            if c == ' ' {
+                return None
+            }
+
+            Some(Player::from(c))
+        });
 
         State {
             board,
@@ -406,6 +412,7 @@ impl Player {
 
 impl From<char> for Player {
     fn from(value: char) -> Self {
+        println!("{:?}", value);
         match value.to_ascii_uppercase() {
             'O' => Player::O,
             'X' => Player::X,
@@ -420,5 +427,225 @@ impl From<&Player> for char {
             Player::O => 'O',
             Player::X => 'X',
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_player_toggle() {
+        assert_eq!(Player::X.toggle(), Player::O);
+        assert_eq!(Player::O.toggle(), Player::X);
+    }
+    
+    #[test]
+    fn test_player_conversions() {
+        // From char to Player
+        assert_eq!(Player::from('X'), Player::X);
+        assert_eq!(Player::from('O'), Player::O);
+        assert_eq!(Player::from('x'), Player::X); // Lowercase should work
+        assert_eq!(Player::from('o'), Player::O);
+        
+        // From Player to char
+        assert_eq!(char::from(&Player::X), 'X');
+        assert_eq!(char::from(&Player::O), 'O');
+    }
+    
+    #[test]
+    fn test_new_game_state() {
+        let game = Game::new(Mode::Local, false);
+        
+        // Check default state
+        assert_eq!(game.state.board, [' '; 9]);
+        assert_eq!(game.state.round, 0);
+        assert!(game.state.active);
+        assert_eq!(game.state.current_player, Player::O);
+        assert_eq!(game.state.winner, None);
+    }
+    
+    #[test]
+    fn test_win_conditions() {
+        // Test horizontal win
+        let mut state = State {
+            board: ['X', 'X', 'X', 
+                    ' ', 'O', ' ', 
+                    'O', ' ', ' '],
+            round: 5,
+            active: true,
+            current_player: Player::O,
+            winner: None,
+        };
+        state.check_status();
+        assert_eq!(state.winner, Some(Player::X));
+        assert!(!state.active);
+        
+        // Test vertical win
+        let mut state = State {
+            board: ['O', ' ', 'X', 
+                    'O', 'X', ' ', 
+                    'O', ' ', ' '],
+            round: 5,
+            active: true,
+            current_player: Player::X,
+            winner: None,
+        };
+        state.check_status();
+        assert_eq!(state.winner, Some(Player::O));
+        
+        // Test diagonal win
+        let mut state = State {
+            board: ['X', 'O', ' ', 
+                    'O', 'X', ' ', 
+                    ' ', ' ', 'X'],
+            round: 5,
+            active: true,
+            current_player: Player::O,
+            winner: None,
+        };
+        state.check_status();
+        assert_eq!(state.winner, Some(Player::X));
+    }
+    
+    #[test]
+    fn test_draw_condition() {
+        let mut state = State {
+            board: ['X', 'O', 'X', 
+                    'X', 'O', 'O', 
+                    'O', 'X', 'X'],
+            round: 9,
+            active: true,
+            current_player: Player::O,
+            winner: None,
+        };
+        state.check_status();
+        assert_eq!(state.winner, None);
+        assert!(!state.active);
+    }
+    
+    #[test]
+    fn test_attempt_placing() {
+        let mut game = Game::new(Mode::Local, false);
+        
+        // Place X at position 0
+        game.cursor_pos = game.symbol_slots[0];
+        game.attempt_placing('X');
+        
+        // Should succeed because it's Player::O's turn in a new game
+        assert_eq!(game.state.board[0], ' '); // Failed - wrong player
+        
+        // Place O at position 0
+        game.attempt_placing('O');
+        assert_eq!(game.state.board[0], 'O'); // Should succeed
+        assert_eq!(game.state.current_player, Player::X); // Turn should have switched
+        
+        // Try placing at the same spot again
+        game.attempt_placing('X');
+        assert_eq!(game.state.board[0], 'O'); // Should still be O (already occupied)
+    }
+    
+    #[test]
+    fn test_serialization_deserialization() {
+        let original_state = State {
+            board: ['X', 'O', ' ', 
+                    ' ', 'X', ' ', 
+                    'O', ' ', ' '],
+            round: 5,
+            active: true,
+            current_player: Player::X,
+            winner: None,
+        };
+        
+        // Serialize
+        let bytes: Vec<u8> = (&original_state).into();
+        assert_eq!(bytes.len(), 11); // Should be exactly 11 bytes
+        
+        // Deserialize
+        let deserialized_state = State::try_from(bytes.as_slice()).expect("Failed to deserialize");
+        
+        // Compare
+        assert_eq!(deserialized_state.board, original_state.board);
+        assert_eq!(deserialized_state.round, original_state.round);
+        assert_eq!(deserialized_state.active, original_state.active);
+        assert_eq!(deserialized_state.current_player, original_state.current_player);
+        assert_eq!(deserialized_state.winner, original_state.winner);
+    }
+    
+    #[test]
+    fn test_move_validation() {
+        let mut game = Game::new(Mode::Network, true); // Host is Player::O
+        
+        // Set up current state
+        game.state.board = ['X', ' ', ' ', 
+                           ' ', 'O', ' ', 
+                           ' ', ' ', ' '];
+        game.state.round = 2;
+        game.state.current_player = Player::X;
+        
+        // Valid move by Player::X
+        let valid_state = State {
+            board: ['X', ' ', ' ', 
+                   ' ', 'O', ' ', 
+                   ' ', 'X', ' '],  // X placed at position 7
+            round: 3,
+            active: true,
+            current_player: Player::O,
+            winner: None,
+        };
+        
+        assert!(game.validate(valid_state).is_ok());
+        
+        // Invalid move - wrong player's turn
+        let invalid_state1 = State {
+            board: ['X', ' ', ' ', 
+                   ' ', 'O', ' ', 
+                   'O', ' ', ' '],  // O placed, but it's X's turn
+            round: 3,
+            active: true, 
+            current_player: Player::X,
+            winner: None,
+        };
+        
+        assert!(game.validate(invalid_state1).is_err());
+        
+        // Invalid move - multiple changes
+        let invalid_state2 = State {
+            board: ['X', 'X', ' ', 
+                   ' ', 'O', ' ', 
+                   ' ', 'X', ' '],  // Two new X's placed
+            round: 3,
+            active: true,
+            current_player: Player::O, 
+            winner: None,
+        };
+        
+        assert!(game.validate(invalid_state2).is_err());
+    }
+    
+    #[test]
+    fn test_string_conversion() {
+        let state = State {
+            board: ['X', 'O', ' ', 
+                    ' ', 'X', ' ', 
+                    'O', ' ', ' '],
+            round: 5,
+            active: true,
+            current_player: Player::X,
+            winner: None,
+        };
+        
+        // Convert to string
+        let state_str = state.to_string();
+        
+        // Convert back from string
+        let reconstructed = State::from(state_str);
+        
+        // Compare
+        assert_eq!(reconstructed.board, state.board);
+        assert_eq!(reconstructed.round, state.round);
+        assert_eq!(reconstructed.active, state.active);
+        assert_eq!(reconstructed.current_player, state.current_player);
+        assert_eq!(reconstructed.winner, state.winner);
     }
 }
