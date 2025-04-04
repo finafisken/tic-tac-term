@@ -1,3 +1,3 @@
-- ui show whos turn and game state
+- improve ui instead of just game state print
 - rewrite magic numbers to be relative to board_pos
 - rewrite to handle n x n size of board
