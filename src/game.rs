@@ -412,7 +412,6 @@ impl Player {
 
 impl From<char> for Player {
     fn from(value: char) -> Self {
-        println!("{:?}", value);
         match value.to_ascii_uppercase() {
             'O' => Player::O,
             'X' => Player::X,
