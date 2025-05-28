@@ -7,7 +7,8 @@ use std::{
     cmp,
     io::{self, Write},
     mem,
-    sync::{mpsc, Mutex, OnceLock}, time::Duration,
+    sync::{mpsc, Mutex, OnceLock},
+    time::Duration,
 };
 
 use super::game;
@@ -152,8 +153,8 @@ pub fn print_debug<T: fmt::Debug>(data: T) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::mpsc;
     use crate::game::{Game, Mode, Player};
+    use std::sync::mpsc;
 
     #[test]
     fn test_ansi_format() {
@@ -170,138 +171,136 @@ mod tests {
         game.free_cursor = true;
         game.cursor_pos = (5, 5);
 
-        // Test arrow up
+        // arrow up
         tx.send(b'[').unwrap();
         tx.send(b'A').unwrap();
         move_cursor(&mut game, &rx);
         assert_eq!(game.cursor_pos, (5, 4));
 
-        // Test arrow down
+        // arrow down
         tx.send(b'[').unwrap();
         tx.send(b'B').unwrap();
         move_cursor(&mut game, &rx);
         assert_eq!(game.cursor_pos, (5, 5));
 
-        // Test arrow right
+        // arrow right
         tx.send(b'[').unwrap();
         tx.send(b'C').unwrap();
         move_cursor(&mut game, &rx);
         assert_eq!(game.cursor_pos, (6, 5));
 
-        // Test arrow left
+        // arrow left
         tx.send(b'[').unwrap();
         tx.send(b'D').unwrap();
         move_cursor(&mut game, &rx);
         assert_eq!(game.cursor_pos, (5, 5));
 
-        // Test boundary conditions
+        // boundary conditions
         game.cursor_pos = (1, 1);
         tx.send(b'[').unwrap();
         tx.send(b'D').unwrap();
         move_cursor(&mut game, &rx);
-        assert_eq!(game.cursor_pos, (1, 1)); // Should not go below 1
+        assert_eq!(game.cursor_pos, (1, 1)); // should not go below 1
 
         tx.send(b'[').unwrap();
         tx.send(b'A').unwrap();
         move_cursor(&mut game, &rx);
-        assert_eq!(game.cursor_pos, (1, 1)); // Should not go below 1
+        assert_eq!(game.cursor_pos, (1, 1)); // should not go below 1
     }
 
     #[test]
     fn test_move_cursor_fixed_mode() {
         let (tx, rx) = mpsc::channel();
         let mut game = Game::new(Mode::Local, true);
-        
-        // Set up symbol slots
+
+        // set up symbol slots
         game.symbol_slots = [
-            (3, 2), (7, 2), (11, 2),
-            (3, 4), (7, 4), (11, 4),
-            (3, 6), (7, 6), (11, 6),
+            (3, 2),
+            (7, 2),
+            (11, 2),
+            (3, 4),
+            (7, 4),
+            (11, 4),
+            (3, 6),
+            (7, 6),
+            (11, 6),
         ];
-        
+
         game.free_cursor = false;
-        game.cursor_pos = (7, 4); // Middle slot
-        
-        // Test arrow up
+        game.cursor_pos = (7, 4); // middle slot
+
+        // arrow up
         tx.send(b'[').unwrap();
         tx.send(b'A').unwrap();
         move_cursor(&mut game, &rx);
         assert_eq!(game.cursor_pos, (7, 2));
 
-        // Test arrow down
+        // arrow down
         tx.send(b'[').unwrap();
         tx.send(b'B').unwrap();
         move_cursor(&mut game, &rx);
         assert_eq!(game.cursor_pos, (7, 4));
-        
-        // Test arrow right
+
+        // arrow right
         tx.send(b'[').unwrap();
         tx.send(b'C').unwrap();
         move_cursor(&mut game, &rx);
         assert_eq!(game.cursor_pos, (11, 4));
-        
-        // Test arrow left
+
+        // arrow left
         tx.send(b'[').unwrap();
         tx.send(b'D').unwrap();
         move_cursor(&mut game, &rx);
         assert_eq!(game.cursor_pos, (7, 4));
     }
-    
+
     #[test]
     fn test_process_input() {
         let (tx, rx) = mpsc::channel();
         let mut game = Game::new(Mode::Local, true);
-        
-        // Test place X
+
+        // place X
         tx.send(b'x').unwrap();
         let result = process_input(&mut game, &rx);
         assert!(result.is_ok());
-        
-        // Test toggle free cursor
+
+        // toggle free cursor
         let current_state = game.free_cursor;
         tx.send(b'f').unwrap();
         let result = process_input(&mut game, &rx);
         assert!(result.is_ok());
         assert_eq!(game.free_cursor, !current_state);
-        
-        // Test placing at current position
+
+        // placing at current position
         game.cursor_pos = game.symbol_slots[0];
         game.state.current_player = Player::O;
         tx.send(b' ').unwrap();
         let result = process_input(&mut game, &rx);
         assert!(result.is_ok());
-        // The board should now have an O at position 0
+        // board should now have an O at position 0
         assert_eq!(game.state.board[0], 'O');
-        
-        // Test arrow key input (first part of sequence)
+
+        // arrow key input (first part of sequence)
         tx.send(b'\x1B').unwrap();
-        // Need to send the follow-up bytes quickly
+        // need to send the follow-up bytes quickly
         tx.send(b'[').unwrap();
         tx.send(b'B').unwrap();
         let result = process_input(&mut game, &rx);
         assert!(result.is_ok());
     }
-    
+
     #[test]
     fn test_invalid_input() {
         let (tx, rx) = mpsc::channel();
         let mut game = Game::new(Mode::Local, true);
-        
-        // Test timeout (no input)
+
+        // timeout (no input)
         let result = process_input(&mut game, &rx);
         assert!(result.is_err());
-        
-        // Test incomplete escape sequence
+
+        // incomplete escape sequence
         tx.send(b'\x1B').unwrap();
         let result = process_input(&mut game, &rx);
-        assert!(result.is_ok()); // Should not crash, but might timeout
-    }
-    
-    // This is a special test - we can't fully test the function
-    // but we can verify it doesn't crash when called
-    #[test]
-    fn test_print_debug_doesnt_crash() {
-        // This just verifies the function doesn't panic
-        print_debug("Test debug message");
+        assert!(result.is_ok()); // should not crash, but might timeout
     }
 }

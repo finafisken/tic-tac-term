@@ -5,10 +5,7 @@ use std::{
 
 use anyhow::anyhow;
 
-use crate::{
-    network::NetState,
-    terminal,
-};
+use crate::{network::NetState, terminal};
 
 #[derive(Debug)]
 pub struct Game {
@@ -122,7 +119,13 @@ impl Game {
 
     pub fn validate(&mut self, potential_state: State) -> anyhow::Result<()> {
         let mut diff_indexes = Vec::new();
-        for (i, (old, new)) in self.state.board.iter().zip(potential_state.board.iter()).enumerate() {
+        for (i, (old, new)) in self
+            .state
+            .board
+            .iter()
+            .zip(potential_state.board.iter())
+            .enumerate()
+        {
             if old != new {
                 diff_indexes.push(i);
             }
@@ -137,7 +140,8 @@ impl Game {
         }
 
         // the single diff should be a symbol of opposing player
-        let diff_by_expected_player = Player::from(potential_state.board[diff_indexes[0]]) == self.player.toggle();
+        let diff_by_expected_player =
+            Player::from(potential_state.board[diff_indexes[0]]) == self.player.toggle();
         if !diff_by_expected_player {
             return Err(anyhow!("Wrong player made the move"));
         }
@@ -239,7 +243,7 @@ impl State {
 impl TryFrom<&[u8]> for State {
     fn try_from(bytes: &[u8]) -> anyhow::Result<Self> {
         if bytes.len() != 11 {
-            return Err(anyhow!("Full state can only be deserialized from 11 bytes"))
+            return Err(anyhow!("Full state can only be deserialized from 11 bytes"));
         }
         // board is 9 bytes (no need for full char (4bytes), can only have 3 values)
         let board_bytes = &bytes[0..9];
@@ -262,13 +266,21 @@ impl TryFrom<&[u8]> for State {
         // active = 1bit bool
         let flags_byte = bytes[10];
 
-        // extract flags 
+        // extract flags
         // TODO add more comments about bit ops
-        let current_player = if (flags_byte & 1) == 0 { Player::X } else { Player::O };
+        let current_player = if (flags_byte & 1) == 0 {
+            Player::X
+        } else {
+            Player::O
+        };
         let active = (flags_byte & (1 << 1)) != 0;
         let has_winner = (flags_byte & (1 << 2)) != 0;
         let winner = if has_winner {
-            Some(if (flags_byte & (1 << 3)) == 0 { Player::X } else { Player::O })
+            Some(if (flags_byte & (1 << 3)) == 0 {
+                Player::X
+            } else {
+                Player::O
+            })
         } else {
             None
         };
@@ -298,34 +310,34 @@ impl From<&State> for Vec<u8> {
                 _ => b' ',
             };
             bytes.push(byte)
-        };
+        }
 
         // round count 1 byte (u8)
         bytes.push(state.round);
 
         // pack flags into a single byte
         let mut flags_byte: u8 = 0;
-        
+
         // current player (bit 0)
         if state.current_player == Player::O {
             flags_byte |= 1;
         }
-        
+
         // active state (bit 1)
         if state.active {
             flags_byte |= 1 << 1;
         }
-        
+
         // has winner (bit 2)
         if state.winner.is_some() {
             flags_byte |= 1 << 2;
-            
+
             // winner player (bit 3)
             if let Some(Player::O) = state.winner {
                 flags_byte |= 1 << 3;
             }
         }
-        
+
         // flags byte (1 byte)
         bytes.push(flags_byte);
 
@@ -355,7 +367,7 @@ impl From<String> for State {
         let active = x.get(3).map(|s| s.parse::<bool>().unwrap()).unwrap();
         let winner = x.get(4).and_then(|s| s.chars().next()).and_then(|c| {
             if c == ' ' {
-                return None
+                return None;
             }
 
             Some(Player::from(c))
@@ -438,39 +450,37 @@ mod tests {
         assert_eq!(Player::X.toggle(), Player::O);
         assert_eq!(Player::O.toggle(), Player::X);
     }
-    
+
     #[test]
     fn test_player_conversions() {
-        // From char to Player
+        // char to Player
         assert_eq!(Player::from('X'), Player::X);
         assert_eq!(Player::from('O'), Player::O);
         assert_eq!(Player::from('x'), Player::X); // Lowercase should work
         assert_eq!(Player::from('o'), Player::O);
-        
-        // From Player to char
+
+        // Player to char
         assert_eq!(char::from(&Player::X), 'X');
         assert_eq!(char::from(&Player::O), 'O');
     }
-    
+
     #[test]
     fn test_new_game_state() {
         let game = Game::new(Mode::Local, false);
-        
-        // Check default state
+
+        // check default state
         assert_eq!(game.state.board, [' '; 9]);
         assert_eq!(game.state.round, 0);
         assert!(game.state.active);
         assert_eq!(game.state.current_player, Player::O);
         assert_eq!(game.state.winner, None);
     }
-    
+
     #[test]
     fn test_win_conditions() {
-        // Test horizontal win
+        // horizontal win
         let mut state = State {
-            board: ['X', 'X', 'X', 
-                    ' ', 'O', ' ', 
-                    'O', ' ', ' '],
+            board: ['X', 'X', 'X', ' ', 'O', ' ', 'O', ' ', ' '],
             round: 5,
             active: true,
             current_player: Player::O,
@@ -479,12 +489,10 @@ mod tests {
         state.check_status();
         assert_eq!(state.winner, Some(Player::X));
         assert!(!state.active);
-        
-        // Test vertical win
+
+        // vertical win
         let mut state = State {
-            board: ['O', ' ', 'X', 
-                    'O', 'X', ' ', 
-                    'O', ' ', ' '],
+            board: ['O', ' ', 'X', 'O', 'X', ' ', 'O', ' ', ' '],
             round: 5,
             active: true,
             current_player: Player::X,
@@ -492,12 +500,10 @@ mod tests {
         };
         state.check_status();
         assert_eq!(state.winner, Some(Player::O));
-        
-        // Test diagonal win
+
+        // diagonal win
         let mut state = State {
-            board: ['X', 'O', ' ', 
-                    'O', 'X', ' ', 
-                    ' ', ' ', 'X'],
+            board: ['X', 'O', ' ', 'O', 'X', ' ', ' ', ' ', 'X'],
             round: 5,
             active: true,
             current_player: Player::O,
@@ -506,13 +512,11 @@ mod tests {
         state.check_status();
         assert_eq!(state.winner, Some(Player::X));
     }
-    
+
     #[test]
     fn test_draw_condition() {
         let mut state = State {
-            board: ['X', 'O', 'X', 
-                    'X', 'O', 'O', 
-                    'O', 'X', 'X'],
+            board: ['X', 'O', 'X', 'X', 'O', 'O', 'O', 'X', 'X'],
             round: 9,
             active: true,
             current_player: Player::O,
@@ -522,125 +526,110 @@ mod tests {
         assert_eq!(state.winner, None);
         assert!(!state.active);
     }
-    
+
     #[test]
     fn test_attempt_placing() {
         let mut game = Game::new(Mode::Local, false);
-        
-        // Place X at position 0
+
+        // place X at position 0
         game.cursor_pos = game.symbol_slots[0];
         game.attempt_placing('X');
-        
-        // Should succeed because it's Player::O's turn in a new game
-        assert_eq!(game.state.board[0], ' '); // Failed - wrong player
-        
-        // Place O at position 0
+
+        // should succeed because it's Player::O's turn in a new game
+        assert_eq!(game.state.board[0], ' '); // failed - wrong player
+
+        // place O at position 0
         game.attempt_placing('O');
-        assert_eq!(game.state.board[0], 'O'); // Should succeed
-        assert_eq!(game.state.current_player, Player::X); // Turn should have switched
-        
-        // Try placing at the same spot again
+        assert_eq!(game.state.board[0], 'O'); // should succeed
+        assert_eq!(game.state.current_player, Player::X); // turn should have switched
+
+        // try placing at the same spot again
         game.attempt_placing('X');
-        assert_eq!(game.state.board[0], 'O'); // Should still be O (already occupied)
+        assert_eq!(game.state.board[0], 'O'); // should still be O (already occupied)
     }
-    
+
     #[test]
     fn test_serialization_deserialization() {
         let original_state = State {
-            board: ['X', 'O', ' ', 
-                    ' ', 'X', ' ', 
-                    'O', ' ', ' '],
+            board: ['X', 'O', ' ', ' ', 'X', ' ', 'O', ' ', ' '],
             round: 5,
             active: true,
             current_player: Player::X,
             winner: None,
         };
-        
-        // Serialize
+
         let bytes: Vec<u8> = (&original_state).into();
-        assert_eq!(bytes.len(), 11); // Should be exactly 11 bytes
-        
-        // Deserialize
+        assert_eq!(bytes.len(), 11); // should be exactly 11 bytes
+
         let deserialized_state = State::try_from(bytes.as_slice()).expect("Failed to deserialize");
-        
-        // Compare
+
         assert_eq!(deserialized_state.board, original_state.board);
         assert_eq!(deserialized_state.round, original_state.round);
         assert_eq!(deserialized_state.active, original_state.active);
-        assert_eq!(deserialized_state.current_player, original_state.current_player);
+        assert_eq!(
+            deserialized_state.current_player,
+            original_state.current_player
+        );
         assert_eq!(deserialized_state.winner, original_state.winner);
     }
-    
+
     #[test]
     fn test_move_validation() {
         let mut game = Game::new(Mode::Network, true); // Host is Player::O
-        
-        // Set up current state
-        game.state.board = ['X', ' ', ' ', 
-                           ' ', 'O', ' ', 
-                           ' ', ' ', ' '];
+
+        // set up current state
+        game.state.board = ['X', ' ', ' ', ' ', 'O', ' ', ' ', ' ', ' '];
         game.state.round = 2;
         game.state.current_player = Player::X;
-        
-        // Valid move by Player::X
+
+        // valid move by Player::X
         let valid_state = State {
-            board: ['X', ' ', ' ', 
-                   ' ', 'O', ' ', 
-                   ' ', 'X', ' '],  // X placed at position 7
+            board: ['X', ' ', ' ', ' ', 'O', ' ', ' ', 'X', ' '], // X placed at position 7
             round: 3,
             active: true,
             current_player: Player::O,
             winner: None,
         };
-        
+
         assert!(game.validate(valid_state).is_ok());
-        
-        // Invalid move - wrong player's turn
+
+        // invalid move, wrong players turn
         let invalid_state1 = State {
-            board: ['X', ' ', ' ', 
-                   ' ', 'O', ' ', 
-                   'O', ' ', ' '],  // O placed, but it's X's turn
+            board: ['X', ' ', ' ', ' ', 'O', ' ', 'O', ' ', ' '], // O placed, but it's X's turn
             round: 3,
-            active: true, 
+            active: true,
             current_player: Player::X,
             winner: None,
         };
-        
+
         assert!(game.validate(invalid_state1).is_err());
-        
-        // Invalid move - multiple changes
+
+        // invalid move, multiple changes
         let invalid_state2 = State {
-            board: ['X', 'X', ' ', 
-                   ' ', 'O', ' ', 
-                   ' ', 'X', ' '],  // Two new X's placed
+            board: ['X', 'X', ' ', ' ', 'O', ' ', ' ', 'X', ' '], // Two new X's placed
             round: 3,
             active: true,
-            current_player: Player::O, 
+            current_player: Player::O,
             winner: None,
         };
-        
+
         assert!(game.validate(invalid_state2).is_err());
     }
-    
+
     #[test]
     fn test_string_conversion() {
         let state = State {
-            board: ['X', 'O', ' ', 
-                    ' ', 'X', ' ', 
-                    'O', ' ', ' '],
+            board: ['X', 'O', ' ', ' ', 'X', ' ', 'O', ' ', ' '],
             round: 5,
             active: true,
             current_player: Player::X,
             winner: None,
         };
-        
-        // Convert to string
+
         let state_str = state.to_string();
-        
-        // Convert back from string
+
         let reconstructed = State::from(state_str);
-        
-        // Compare
+
         assert_eq!(reconstructed.board, state.board);
         assert_eq!(reconstructed.round, state.round);
         assert_eq!(reconstructed.active, state.active);
