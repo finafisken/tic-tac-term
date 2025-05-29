@@ -21,15 +21,16 @@ fn main() -> anyhow::Result<()> {
 
     if game_mode == Mode::Network {
         let socket = network::connect(&game_id, &server_addr)?;
+        let socket2 = socket.try_clone()?;
         thread::spawn(move || loop {
-            let incoming = network::read_stream(&mut net_read).unwrap();
+            let incoming = network::read(&socket).unwrap();
             net_tx.send(incoming).unwrap();
             thread::sleep(time::Duration::from_millis(33));
         });
 
         thread::spawn(move || loop {
             if let Ok(msg) = game_rx.recv() {
-                network::write_stream(&mut net_write, msg.into()).unwrap();
+                network::write(&socket2, msg).unwrap();
                 thread::sleep(time::Duration::from_millis(33));
             }
         });

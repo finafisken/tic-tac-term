@@ -1,9 +1,5 @@
-use std::{
-    io::{BufReader, BufWriter, Read, Write},
-    net::{TcpListener, TcpStream, UdpSocket},
-};
-
-use anyhow::anyhow;
+use anyhow::{anyhow, Ok};
+use std::net::UdpSocket;
 
 #[derive(Debug, PartialEq)]
 pub enum MessageType {
@@ -57,7 +53,10 @@ impl From<Message> for Vec<u8> {
 
 impl TryFrom<&[u8]> for Message {
     fn try_from(bytes: &[u8]) -> anyhow::Result<Self> {
-        // TODO some check that length of bytes adds up before conversion
+        if bytes.is_empty() {
+            return Err(anyhow!("Empty bytes array"));
+        }
+
         let message_type: MessageType = bytes[0].try_into()?;
 
         if message_type != MessageType::Payload {
@@ -68,9 +67,23 @@ impl TryFrom<&[u8]> for Message {
             });
         }
 
+        if bytes.len() < 3 {
+            return Err(anyhow!("Insufficient bytes for payload message header"));
+        }
+
+        let payload_size = u16::from_be_bytes([bytes[1], bytes[2]]);
+
+        if bytes.len() < 3 + payload_size as usize {
+            return Err(anyhow!(
+                "Incomplete payload: expected {} bytes, got {}",
+                payload_size,
+                bytes.len()
+            ));
+        }
+
         Ok(Message {
             message_type,
-            payload_size: u16::from_be_bytes([bytes[1], bytes[2]]),
+            payload_size,
             payload: bytes[3..].to_vec(),
         })
     }
@@ -103,35 +116,16 @@ pub fn connect(game_id: &str, server_addr: &str) -> anyhow::Result<UdpSocket> {
     Ok(udp_socket)
 }
 
-pub fn read_stream<R: Read>(stream: &mut BufReader<R>) -> anyhow::Result<Message> {
-    let mut mt_buf = [0; 1];
-    stream.read_exact(&mut mt_buf)?;
-    let message_type: MessageType = mt_buf[0].try_into()?;
+pub fn read(socket: &UdpSocket) -> anyhow::Result<Message> {
+    let mut buf = [0u8; 1024];
+    let bytes_recieved = socket.recv(&mut buf)?;
 
-    if message_type != MessageType::Payload {
-        let message: Message = mt_buf.as_slice().try_into()?;
-        return Ok(message);
-    }
-
-    let mut payload_size_buf = [0; 2];
-    stream.read_exact(&mut payload_size_buf)?;
-
-    let payload_size = u16::from_be_bytes(payload_size_buf);
-
-    let mut payload = vec![0; payload_size as usize];
-
-    stream.read_exact(&mut payload)?;
-
-    Ok(Message {
-        message_type,
-        payload_size,
-        payload,
-    })
+    Message::try_from(&buf[..bytes_recieved])
 }
 
-pub fn write_stream<W: Write>(stream: &mut BufWriter<W>, data: Vec<u8>) -> anyhow::Result<()> {
-    stream.write_all(&data)?;
-    stream.flush()?;
+pub fn write(socket: &UdpSocket, msg: Message) -> anyhow::Result<()> {
+    let data: Vec<u8> = msg.into();
+    socket.send(&data)?;
 
     Ok(())
 }
@@ -139,7 +133,6 @@ pub fn write_stream<W: Write>(stream: &mut BufWriter<W>, data: Vec<u8>) -> anyho
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Cursor;
 
     #[test]
     fn test_message_type_conversions() {
@@ -201,46 +194,6 @@ mod tests {
     }
 
     #[test]
-    fn test_read_stream() {
-        // mock a simple accepted message
-        let mock_data = vec![0]; // MessageType::Accepted
-        let mut cursor = Cursor::new(mock_data);
-        let mut reader = BufReader::new(&mut cursor);
-
-        // test reading non-payload message
-        let msg = read_stream(&mut reader).unwrap();
-        assert_eq!(msg.message_type, MessageType::Accepted);
-
-        // mock a payload message
-        let mock_data = vec![2, 0, 3, 65, 66, 67]; // Payload message with "ABC"
-        let mut cursor = Cursor::new(mock_data);
-        let mut reader = BufReader::new(&mut cursor);
-
-        // test reading payload message
-        let msg = read_stream(&mut reader).unwrap();
-        assert_eq!(msg.message_type, MessageType::Payload);
-        assert_eq!(msg.payload_size, 3);
-        assert_eq!(msg.payload, vec![65, 66, 67]);
-    }
-
-    // test write_stream with mock writer
-    #[test]
-    fn test_write_stream() {
-        let mut buffer = Vec::new();
-
-        {
-            let mut writer = BufWriter::new(&mut buffer);
-            // write a simple message
-            let data = vec![0, 0, 0]; // Accepted message
-            write_stream(&mut writer, data).unwrap();
-            // writer is dropped at the end of this scope
-        }
-
-        // Now buffer can be accessed
-        assert_eq!(buffer, vec![0, 0, 0]);
-    }
-
-    #[test]
     fn test_error_handling() {
         // invalid message type
         let invalid_data = vec![5]; // Invalid message type
@@ -249,10 +202,8 @@ mod tests {
 
         // incomplete payload message
         let incomplete_data = vec![2, 0, 5, 1, 2]; // Payload size 5 but only 2 bytes
-        let mut cursor = Cursor::new(incomplete_data);
-        let mut reader = BufReader::new(&mut cursor);
 
-        let result = read_stream(&mut reader);
+        let result = Message::try_from(incomplete_data.as_slice());
         assert!(result.is_err());
     }
 }
