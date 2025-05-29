@@ -12,7 +12,7 @@ mod network;
 mod terminal;
 
 fn main() -> anyhow::Result<()> {
-    let (game_mode, addr, is_host) = parse_args();
+    let (game_mode, game_id, is_host, server_addr) = parse_args();
     terminal::init();
 
     let (game_tx, game_rx) = mpsc::channel::<Message>();
@@ -20,7 +20,7 @@ fn main() -> anyhow::Result<()> {
     let (term_tx, term_rx) = mpsc::channel::<u8>();
 
     if game_mode == Mode::Network {
-        let (mut net_read, mut net_write) = network::connect(&addr, is_host)?;
+        let socket = network::connect(&game_id, &server_addr)?;
         thread::spawn(move || loop {
             let incoming = network::read_stream(&mut net_read).unwrap();
             net_tx.send(incoming).unwrap();
@@ -92,15 +92,17 @@ fn main() -> anyhow::Result<()> {
     }
 }
 
-fn parse_args() -> (Mode, String, bool) {
+fn parse_args() -> (Mode, String, bool, String) {
     let args: Vec<String> = env::args().collect();
 
     if args.len() == 1 {
-        return (Mode::Local, String::default(), false);
+        return (Mode::Local, String::default(), false, String::default());
     }
 
-    let addr = args.get(2).expect("no address provided").clone();
+    let game_id = args.get(2).expect("no game id provided").clone();
     let is_host = args.get(1).expect("missing argument") == &String::from("host");
 
-    (Mode::Network, addr, is_host)
+    let server_addr = std::env::var("TTT_UDP_SERVER").expect("TTT_UDP_SERVER env var not set");
+
+    (Mode::Network, game_id, is_host, server_addr)
 }

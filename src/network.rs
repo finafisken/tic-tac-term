@@ -1,6 +1,6 @@
 use std::{
     io::{BufReader, BufWriter, Read, Write},
-    net::{TcpListener, TcpStream},
+    net::{TcpListener, TcpStream, UdpSocket},
 };
 
 use anyhow::anyhow;
@@ -84,22 +84,23 @@ pub enum NetState {
     Waiting,
 }
 
-pub fn connect(
-    address: &str,
-    is_host: bool,
-) -> anyhow::Result<(BufReader<TcpStream>, BufWriter<TcpStream>)> {
-    let tcp_stream = match is_host {
-        true => TcpListener::bind(address)?.accept()?.0,
-        false => TcpStream::connect(address)?,
-    };
+// https://doc.rust-lang.org/book/ch21-01-single-threaded.html
+// https://github.com/thepacketgeek/rust-tcpstream-demo/blob/master/protocol/README.md
 
-    // https://doc.rust-lang.org/book/ch21-01-single-threaded.html
-    // https://github.com/thepacketgeek/rust-tcpstream-demo/blob/master/protocol/README.md
+pub fn connect(game_id: &str, server_addr: &str) -> anyhow::Result<UdpSocket> {
+    let udp_socket = UdpSocket::bind("0.0.0.0:0")?;
 
-    let reader = BufReader::new(tcp_stream.try_clone()?);
-    let writer = BufWriter::new(tcp_stream);
+    // get opponent ip:port for game_id from server
+    let init_msg = format!("GAME###{}", game_id);
+    udp_socket.send_to(init_msg.as_bytes(), server_addr)?;
+    let mut init_buf = [0u8; 1024];
+    let (nr_bytes, _) = udp_socket.recv_from(&mut init_buf)?;
+    let opponent_addr = String::from_utf8_lossy(&init_buf[..nr_bytes]).to_string();
 
-    Ok((reader, writer))
+    // dedicate socket to opponent_addr
+    udp_socket.connect(opponent_addr)?;
+
+    Ok(udp_socket)
 }
 
 pub fn read_stream<R: Read>(stream: &mut BufReader<R>) -> anyhow::Result<Message> {
