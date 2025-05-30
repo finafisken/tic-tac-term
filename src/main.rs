@@ -73,6 +73,7 @@ fn main() -> anyhow::Result<()> {
                         game.net_state = NetState::Active;
                     }
                 }
+                _ => println!("Unexpected message during gameplay"),
             }
         }
 

@@ -1,11 +1,16 @@
-use anyhow::{anyhow, Ok};
-use std::{net::{SocketAddr, UdpSocket}, time::Duration};
+use anyhow::anyhow;
+use std::{
+    net::{SocketAddr, UdpSocket},
+    time::Duration,
+};
 
 #[derive(Debug, PartialEq)]
 pub enum MessageType {
     Accepted,
     Rejected,
     Payload,
+    Handshake,
+    HandshakeAck,
 }
 
 impl From<MessageType> for u8 {
@@ -14,6 +19,8 @@ impl From<MessageType> for u8 {
             MessageType::Accepted => 0,
             MessageType::Rejected => 1,
             MessageType::Payload => 2,
+            MessageType::Handshake => 3,
+            MessageType::HandshakeAck => 4,
         }
     }
 }
@@ -24,6 +31,8 @@ impl TryFrom<u8> for MessageType {
             0 => Ok(MessageType::Accepted),
             1 => Ok(MessageType::Rejected),
             2 => Ok(MessageType::Payload),
+            3 => Ok(MessageType::Handshake),
+            4 => Ok(MessageType::HandshakeAck),
             _ => Err(anyhow!("Invalid byte value")),
         }
     }
@@ -114,6 +123,10 @@ pub fn connect(game_id: &str, server_addr: &str) -> anyhow::Result<UdpSocket> {
 
     // dedicate socket to opponent_addr
     udp_socket.connect(opponent_addr)?;
+
+    perform_handshake(&udp_socket)?;
+
+    // connection established, shorten timeouts
     udp_socket.set_read_timeout(Some(Duration::from_millis(100)))?;
     udp_socket.set_write_timeout(Some(Duration::from_millis(100)))?;
 
@@ -121,7 +134,7 @@ pub fn connect(game_id: &str, server_addr: &str) -> anyhow::Result<UdpSocket> {
 }
 
 pub fn read(socket: &UdpSocket) -> anyhow::Result<Message> {
-    println!("# READ peer: {} local: {}", socket.peer_addr()?, socket.local_addr()?);
+    println!("# READ peer: {}", socket.peer_addr()?);
     let mut buf = [0u8; 1024];
     let bytes_recieved = socket.recv(&mut buf)?;
 
@@ -129,11 +142,53 @@ pub fn read(socket: &UdpSocket) -> anyhow::Result<Message> {
 }
 
 pub fn write(socket: &UdpSocket, msg: Message) -> anyhow::Result<()> {
-    println!("# WRITE peer: {} local: {}", socket.peer_addr()?, socket.local_addr()?);
+    println!("# WRITE peer: {}", socket.peer_addr()?);
     let data: Vec<u8> = msg.into();
     socket.send(&data)?;
 
     Ok(())
+}
+
+fn perform_handshake(socket: &UdpSocket) -> anyhow::Result<()> {
+    socket.set_read_timeout(Some(Duration::from_millis(1000)))?;
+
+    let handshake_msg = Message {
+        message_type: MessageType::Handshake,
+        payload_size: 0,
+        payload: Vec::new(),
+    };
+
+    write(socket, handshake_msg)?;
+
+    for attempt in 1..=3 {
+        match read(socket) {
+            Ok(res) => match res.message_type {
+                MessageType::Handshake => {
+                    println!("Handshake recieved from: {}", socket.peer_addr()?);
+
+                    // send acknowledgment
+                    write(
+                        socket,
+                        Message {
+                            message_type: MessageType::HandshakeAck,
+                            payload_size: 0,
+                            payload: Vec::new(),
+                        },
+                    )?;
+
+                    return Ok(());
+                }
+                MessageType::HandshakeAck => return Ok(()),
+                _ => println!("Unexpected message during handshake"),
+            },
+            Err(e) => {
+                println!("Failed handshake attempt {} with: {}", attempt, e);
+                std::thread::sleep(Duration::from_millis(1000));
+            }
+        }
+    }
+
+    Err(anyhow!("Handshake timed out"))
 }
 
 #[cfg(test)]
@@ -146,14 +201,18 @@ mod tests {
         assert_eq!(u8::from(MessageType::Accepted), 0);
         assert_eq!(u8::from(MessageType::Rejected), 1);
         assert_eq!(u8::from(MessageType::Payload), 2);
+        assert_eq!(u8::from(MessageType::Handshake), 3);
+        assert_eq!(u8::from(MessageType::HandshakeAck), 4);
 
         // u8 -> MessageType
         assert_eq!(MessageType::try_from(0).unwrap(), MessageType::Accepted);
         assert_eq!(MessageType::try_from(1).unwrap(), MessageType::Rejected);
         assert_eq!(MessageType::try_from(2).unwrap(), MessageType::Payload);
+        assert_eq!(MessageType::try_from(3).unwrap(), MessageType::Handshake);
+        assert_eq!(MessageType::try_from(4).unwrap(), MessageType::HandshakeAck);
 
         // invalid conversion
-        assert!(MessageType::try_from(3).is_err());
+        assert!(MessageType::try_from(5).is_err());
     }
 
     #[test]
