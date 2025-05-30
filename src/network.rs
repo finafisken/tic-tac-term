@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Ok};
-use std::net::{SocketAddr, UdpSocket};
+use std::{net::{SocketAddr, UdpSocket}, time::Duration};
 
 #[derive(Debug, PartialEq)]
 pub enum MessageType {
@@ -114,11 +114,14 @@ pub fn connect(game_id: &str, server_addr: &str) -> anyhow::Result<UdpSocket> {
 
     // dedicate socket to opponent_addr
     udp_socket.connect(opponent_addr)?;
+    udp_socket.set_read_timeout(Some(Duration::from_millis(100)))?;
+    udp_socket.set_write_timeout(Some(Duration::from_millis(100)))?;
 
     Ok(udp_socket)
 }
 
 pub fn read(socket: &UdpSocket) -> anyhow::Result<Message> {
+    println!("# READ peer: {} local: {}", socket.peer_addr()?, socket.local_addr()?);
     let mut buf = [0u8; 1024];
     let bytes_recieved = socket.recv(&mut buf)?;
 
@@ -126,6 +129,7 @@ pub fn read(socket: &UdpSocket) -> anyhow::Result<Message> {
 }
 
 pub fn write(socket: &UdpSocket, msg: Message) -> anyhow::Result<()> {
+    println!("# WRITE peer: {} local: {}", socket.peer_addr()?, socket.local_addr()?);
     let data: Vec<u8> = msg.into();
     socket.send(&data)?;
 
