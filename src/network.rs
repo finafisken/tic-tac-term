@@ -153,13 +153,14 @@ fn perform_handshake(socket: &UdpSocket, is_host: bool) -> anyhow::Result<()> {
     socket.set_read_timeout(Some(Duration::from_millis(2000)))?;
 
     for attempt in 1..=5 {
-        if is_host {
-            write(socket, Message {
+        write(
+            socket,
+            Message {
                 message_type: MessageType::Handshake,
                 payload_size: 0,
                 payload: Vec::new(),
-            })?;
-        }
+            },
+        )?;
 
         match read(socket) {
             Ok(res) => match res.message_type {
