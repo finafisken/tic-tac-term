@@ -118,7 +118,7 @@ pub fn connect(game_id: &str, server_addr: &str, is_host: bool) -> anyhow::Resul
     let mut init_buf = [0u8; 1024];
     let (nr_bytes, _) = udp_socket.recv_from(&mut init_buf)?;
     let recieved = String::from_utf8_lossy(&init_buf[..nr_bytes]).to_string();
-    println!("#### {}", recieved);
+    println!("#### {} ishost: {}", recieved, is_host);
     let opponent_addr: SocketAddr = recieved.trim().parse()?;
 
     // dedicate socket to opponent_addr
@@ -159,6 +159,11 @@ fn perform_handshake(socket: &UdpSocket, is_host: bool) -> anyhow::Result<()> {
     };
 
     if is_host {
+        println!("Host: Sending handshake first");
+        write(socket, handshake_msg)?;
+    } else {
+        println!("Non-host: Waiting briefly, then sending handshake");
+        std::thread::sleep(Duration::from_millis(500)); // Let host send first
         write(socket, handshake_msg)?;
     }
 
