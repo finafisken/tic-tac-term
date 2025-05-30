@@ -152,22 +152,15 @@ pub fn write(socket: &UdpSocket, msg: Message) -> anyhow::Result<()> {
 fn perform_handshake(socket: &UdpSocket, is_host: bool) -> anyhow::Result<()> {
     socket.set_read_timeout(Some(Duration::from_millis(2000)))?;
 
-    let handshake_msg = Message {
-        message_type: MessageType::Handshake,
-        payload_size: 0,
-        payload: Vec::new(),
-    };
-
-    if is_host {
-        println!("Host: Sending handshake first");
-        write(socket, handshake_msg)?;
-    } else {
-        println!("Non-host: Waiting briefly, then sending handshake");
-        std::thread::sleep(Duration::from_millis(500)); // Let host send first
-        write(socket, handshake_msg)?;
-    }
-
     for attempt in 1..=5 {
+        if is_host {
+            write(socket, Message {
+                message_type: MessageType::Handshake,
+                payload_size: 0,
+                payload: Vec::new(),
+            })?;
+        }
+
         match read(socket) {
             Ok(res) => match res.message_type {
                 MessageType::Handshake => {
