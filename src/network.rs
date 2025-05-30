@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Ok};
-use std::net::UdpSocket;
+use std::net::{SocketAddr, UdpSocket};
 
 #[derive(Debug, PartialEq)]
 pub enum MessageType {
@@ -108,7 +108,9 @@ pub fn connect(game_id: &str, server_addr: &str) -> anyhow::Result<UdpSocket> {
     udp_socket.send_to(init_msg.as_bytes(), server_addr)?;
     let mut init_buf = [0u8; 1024];
     let (nr_bytes, _) = udp_socket.recv_from(&mut init_buf)?;
-    let opponent_addr = String::from_utf8_lossy(&init_buf[..nr_bytes]).to_string();
+    let recieved = String::from_utf8_lossy(&init_buf[..nr_bytes]).to_string();
+    println!("#### {}", recieved);
+    let opponent_addr: SocketAddr = recieved.trim().parse()?;
 
     // dedicate socket to opponent_addr
     udp_socket.connect(opponent_addr)?;
