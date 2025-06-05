@@ -20,7 +20,7 @@ fn main() -> anyhow::Result<()> {
     let (term_tx, term_rx) = mpsc::channel::<u8>();
 
     if game_mode == Mode::Network {
-        let socket = network::connect(&game_id, &server_addr, is_host)?;
+        let socket = network::connect(&game_id, &server_addr)?;
         let socket2 = socket.try_clone()?;
         thread::spawn(move || loop {
             let incoming = network::read(&socket).unwrap();
@@ -88,6 +88,7 @@ fn main() -> anyhow::Result<()> {
             };
 
             game_tx.send(message)?;
+            game.net_state = NetState::Waiting;
         }
 
         thread::sleep(time::Duration::from_millis(33));

@@ -109,7 +109,7 @@ pub enum NetState {
 // https://doc.rust-lang.org/book/ch21-01-single-threaded.html
 // https://github.com/thepacketgeek/rust-tcpstream-demo/blob/master/protocol/README.md
 
-pub fn connect(game_id: &str, server_addr: &str, is_host: bool) -> anyhow::Result<UdpSocket> {
+pub fn connect(game_id: &str, server_addr: &str) -> anyhow::Result<UdpSocket> {
     let udp_socket = UdpSocket::bind("0.0.0.0:0")?;
 
     // get opponent ip:port for game_id from server
@@ -118,13 +118,12 @@ pub fn connect(game_id: &str, server_addr: &str, is_host: bool) -> anyhow::Resul
     let mut init_buf = [0u8; 1024];
     let (nr_bytes, _) = udp_socket.recv_from(&mut init_buf)?;
     let recieved = String::from_utf8_lossy(&init_buf[..nr_bytes]).to_string();
-    println!("#### {} ishost: {}", recieved, is_host);
     let opponent_addr: SocketAddr = recieved.trim().parse()?;
 
     // dedicate socket to opponent_addr
     udp_socket.connect(opponent_addr)?;
 
-    perform_handshake(&udp_socket, is_host)?;
+    perform_handshake(&udp_socket)?;
 
     // connection established, shorten timeouts
     udp_socket.set_read_timeout(Some(Duration::from_millis(100)))?;
@@ -149,7 +148,7 @@ pub fn write(socket: &UdpSocket, msg: Message) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn perform_handshake(socket: &UdpSocket, is_host: bool) -> anyhow::Result<()> {
+fn perform_handshake(socket: &UdpSocket) -> anyhow::Result<()> {
     socket.set_read_timeout(Some(Duration::from_millis(2000)))?;
 
     for attempt in 1..=5 {
